@@ -10,6 +10,8 @@ export default {
     sourcemap: false,
     inlineDynamicImports: true,
   },
+  // KLUCZOWE: Upewnij się, że ta lista jest PUSTA
+  external: [], 
   plugins: [
     resolve({
       browser: true,
@@ -19,10 +21,12 @@ export default {
       declaration: false,
     }),
     terser({
-      format: {
-        comments: false,
-      },
+      format: { comments: false },
     })
   ],
-  external: [], 
+  // Dodaj to, aby widzieć w logach Actions, jeśli coś idzie nie tak z importem
+  onwarn(warning, warn) {
+    if (warning.code === 'UNRESOLVED_IMPORT') throw new Error(warning.message);
+    warn(warning);
+  }
 };
