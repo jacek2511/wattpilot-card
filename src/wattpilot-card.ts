@@ -18,17 +18,23 @@ class WattpilotCard extends HTMLElement {
   private _hass!: HomeAssistant;
   public config!: WattpilotConfig;
   private contentLoaded: boolean = false;
+  
   private animIdx: number = 0;
   private _mainLoop: any = null;
   private _isInteractingC: boolean = false;
+  
+  // Zmienne stanu do obsługi UI
   private _currentAmps: number = 6;
+  private _currentStatus: string = '';
+  private _currentMode: string = '';
+  private _currentPhases: string = '';
+  private _currentReason: string = '';
 
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
   }
   
-  // Rejestracja edytora w Home Assistant
   public static getConfigElement() {
     return document.createElement('wattpilot-card-editor');
   }
@@ -42,12 +48,18 @@ class WattpilotCard extends HTMLElement {
     };
   }
 
+  public setConfig(config: any) {
+    if (!config) throw new Error('Invalid configuration');
+    this.config = config;
+  }
+
   set hass(hass: HomeAssistant) {
     this._hass = hass;
 
     if (!this.contentLoaded && this.shadowRoot) {
-      this.initializeCard(();
+      this.render();
       this.contentLoaded = true;
+      
       this.createLedRing();
       this.bindEvents();
       this.startAnimationLoop();
@@ -55,11 +67,10 @@ class WattpilotCard extends HTMLElement {
     this.updateData();
   }
 
-  private initializeCard() {
-    this.attachShadow({ mode: 'open' });
-    if (this.shadowRoot) {
-      this.shadowRoot.innerHTML = `
-        <style>${cardStyles}</style>
+  private render() {
+    if (!this.shadowRoot) return;
+    this.shadowRoot.innerHTML = `
+      <style>${cardStyles}</style>
         <ha-card>
           <div class="card-header">
             <span id="reason-badge" class="reason-badge">Fronius WattPilot</span>
@@ -344,38 +355,9 @@ class WattpilotCard extends HTMLElement {
             </div>
           </div>
         </ha-card>
-      `;
-      this.content = true;
-      this.createLedRing();
-      this.bindEvents();
-      this.animIdx = 0;
-      this.startAnimationLoop();
-      this.animTimer = null;
-    }
+    `;
   }
 
-  public setConfig(config: any) {
-    if (!config) throw new Error('Invalid configuration');
-    this.config = config;
-  }
-
-  private updateCard() {
-    if (!this._hass || !this.config) return;
-    const states = this._hass.states;
-
-    // Lista selektorów do aktualizacji (Twoja logika z updateData)
-    const uiElements = [
-      '#l1-power-input', '#l2-power-input', '#l3-power-input',
-      '#max-price-input', '#next-trip-time', '#internal-error-txt',
-      '#firmware-update-txt'
-    ];
-
-    uiElements.forEach(selector => this.updateUIElement(selector, states));
-    this.updateLiveStats(states); // Twoja funkcja obliczająca fazy
-  }
-
-  // Tutaj wklej pozostałe metody: updateUIElement, bindUIElement, bindEvents, updateLiveStats
-  // Pamiętaj, aby funkcje pomocnicze wywoływać bez "this." jeśli zaimportowałeś je z helpers.ts
   private createLedRing() {
     const ring = this.shadowRoot?.querySelector('#led-ring');
     if (!ring) return;
@@ -399,12 +381,9 @@ class WattpilotCard extends HTMLElement {
 
   private renderLeds(): void {
     if (!this.shadowRoot) return;
-
-    // Pobieramy diody przez shadowRoot
     const leds = this.shadowRoot.querySelectorAll<HTMLElement>('.led');
     if (leds.length === 0) return;
 
-    // Resetowanie stanu wszystkich diod
     leds.forEach((l) => {
       l.className = 'led';
       l.style.opacity = '1';
@@ -414,24 +393,19 @@ class WattpilotCard extends HTMLElement {
     const status = this._currentStatus || '';
     const activeAmps = Math.min(32, this._currentAmps || 6);
 
-    // 1. Obsługa wskaźników trybu (Eco / Next Trip) gdy nie ładuje
     if (!status.includes('charging')) {
       if (this._currentMode === 'Eco' && leds[0]) leds[0].classList.add('white');
       if (this._currentMode === 'Next Trip' && leds[1]) leds[1].classList.add('white');
     }
 
-    // 2. Logika animacji ładowania
     if (status.includes('charging')) {
       const count = this._currentPhases === '1-Phase' ? 1 : 3;
       const tailLength = 4;
 
       for (let i = 0; i < count; i++) {
-        // Obliczanie pozycji głowy animacji (animIdx zmienia się w pętli setInterval)
         const pos = (this.animIdx + i * 10) % 32;
-
         for (let t = 0; t < tailLength; t++) {
           const tailPos = (pos - t + 32) % 32;
-
           if (tailPos < activeAmps) {
             const led = leds[tailPos];
             led.classList.add('blue', 'breathing');
@@ -446,9 +420,7 @@ class WattpilotCard extends HTMLElement {
           }
         }
       }
-    } 
-    // 3. Logika stanów statycznych (oczekiwanie, błąd, gotowość)
-    else {
+    } else {
       for (let i = 0; i < activeAmps; i++) {
         const led = leds[i];
         if (!led) continue;
@@ -474,26 +446,18 @@ class WattpilotCard extends HTMLElement {
   private updateWhiteSlider(val: number): void {
     if (!this.shadowRoot) return;
 
-    // Pobieramy suwak i rzutujemy na HTMLElement, aby mieć dostęp do .style
     const slider = this.shadowRoot.querySelector('#slider-current') as HTMLElement;
     const textLabel = this.shadowRoot.querySelector('#curr-val-txt') as HTMLElement;
 
     if (slider) {
-      // Obliczamy procent (zakładając zakres Wattpilota 6A - 32A)
       const pct = ((val - 6) / (32 - 6)) * 100;
-      
-      // Ustawiamy zmienną CSS --v, która w Twoich stylach odpowiada za wypełnienie paska
       slider.style.setProperty('--v', `${pct}%`);
-      
-      // Jeśli masz standardowy input typu range, aktualizujemy też jego wartość
       if (slider instanceof HTMLInputElement) {
         slider.value = val.toString();
       }
     }
 
-    if (textLabel) {
-      textLabel.innerText = `${val} A`;
-    }
+    if (textLabel) textLabel.innerText = `${val} A`;
   }
   
   private startAnimationLoop() {
@@ -509,7 +473,6 @@ class WattpilotCard extends HTMLElement {
 
   private renderSideColumn(side: 'left' | 'right'): void {
     if (!this.shadowRoot) return;
-    
     const col = this.shadowRoot.querySelector(`#${side}-col`);
     if (!col) return;
 
@@ -521,13 +484,10 @@ class WattpilotCard extends HTMLElement {
         const row = document.createElement('div');
         row.className = 'data-row';
         row.id = `row-${side}-${i}`;
-        
-        // Tworzymy strukturę wewnątrz wiersza
         row.innerHTML = `
           <ha-icon id="icon-${side}-${i}"></ha-icon>
           <span id="val-${side}-${i}"></span>
         `;
-        
         col.appendChild(row);
       }
     }
@@ -543,11 +503,9 @@ class WattpilotCard extends HTMLElement {
       const stateObj = this._hass.states[cfg.entity];
       if (!stateObj) continue;
 
-      // Pobieranie wartości (z atrybutu lub stanu głównego)
       let val = cfg.attribute ? stateObj.attributes[cfg.attribute] : stateObj.state;
       const numericVal = parseFloat(val);
       
-      // Zaokrąglanie jeśli wartość jest liczbą
       if (!isNaN(numericVal) && val !== '' && val !== null) {
         val = Math.round(numericVal);
       }
@@ -555,30 +513,22 @@ class WattpilotCard extends HTMLElement {
       const unit = cfg.unit || stateObj.attributes.unit_of_measurement || '';
       const icon = cfg.icon || stateObj.attributes.icon || 'mdi:dots-horizontal';
       
-      // Pobieranie referencji do elementów w Shadow DOM
       const valEl = this.shadowRoot.querySelector(`#val-${side}-${i}`) as HTMLElement;
       const iconEl = this.shadowRoot.querySelector(`#icon-${side}-${i}`) as any;
 
-      if (valEl) {
-        valEl.innerText = `${val}${unit}`;
-      }
+      if (valEl) valEl.innerText = `${val}${unit}`;
 
       if (iconEl) {
         iconEl.setAttribute('icon', icon);
-        
-        // Logika kolorowania ikony
         let iconColor = 'var(--primary-color)'; 
         
         if (cfg.color_rules) {
           if (typeof cfg.color_rules === 'string') {
             iconColor = cfg.color_rules;
           } else if (Array.isArray(cfg.color_rules)) {
-            // Sortujemy reguły, aby ostatnia spełniona była tą właściwą (rosnąco)
             const rules = [...cfg.color_rules].sort((a, b) => a.value - b.value);
             for (const rule of rules) {
-              if (numericVal >= rule.value) {
-                iconColor = rule.color;
-              }
+              if (numericVal >= rule.value) iconColor = rule.color;
             }
           }
         }
@@ -597,30 +547,20 @@ class WattpilotCard extends HTMLElement {
     const isPrice = el.dataset.isprice === 'true' || selector.includes('price');
     const confKey = el.dataset.entity;
 
-    // Obsługa zdarzenia 'input' (wizualna aktualizacja tekstu podczas przesuwania suwaka)
     if (el.tagName === 'INPUT') {
       el.addEventListener('input', (e: any) => {
         const txtEl = this.shadowRoot?.querySelector(`${selector}-txt`) as HTMLElement;
         if (txtEl) {
-          let suffix = '';
-          if (isTime) suffix = 'm';
-          else if (isPower) suffix = 'kW';
-          else if (selector.includes('lvl')) suffix = 'A';
-          else if (isPrice) suffix = '€';
-          else suffix = '%';
-
+          let suffix = isTime ? 'm' : isPower ? 'kW' : isPrice ? '€' : selector.includes('lvl') ? 'A' : '%';
           txtEl.innerText = `${e.target.value}${suffix}`;
         }
       });
     }
 
-    // Obsługa zdarzenia 'change' (wysyłanie danych do Home Assistant)
     el.addEventListener('change', (e: any) => {
       if (!this.config[confKey]) return;
-      
       let val = el.tagName === 'HA-SWITCH' ? null : e.target.value;
 
-      // 1. Logika dla zegara (input_datetime)
       if (el.type === 'time' && val !== null) {
         this._hass.callService('input_datetime', 'set_datetime', {
           entity_id: this.config[confKey],
@@ -630,11 +570,11 @@ class WattpilotCard extends HTMLElement {
         return;
       }
 
-      // 2. Konwersja jednostek przed wysłaniem przez helpery
       if (val !== null) {
-        if (isTime) val = helpers.minToMs(val);
-        if (isPower) val = helpers.kwToW(val);
-        if (isPrice) val = helpers.euroToCents(val);
+        // Poprawione wywołania helperów (bez helpers.)
+        if (isTime) val = minToMs(val);
+        if (isPower) val = kwToW(val);
+        if (isPrice) val = euroToCents(val);
       }
 
       const payload: any = { entity_id: this.config[confKey] };
@@ -658,7 +598,6 @@ class WattpilotCard extends HTMLElement {
     const entity = states[this.config[confKey]];
     if (!entity) return;
 
-    // 1. Obsługa błędów wewnętrznych (Internal Error)
     if (selector === '#internal-error-txt') {
       const state = (entity.state || '').toLowerCase();
       const hasError = state !== 'none' && state !== '0' && state !== 'unknown' && state !== 'unavailable';
@@ -667,7 +606,6 @@ class WattpilotCard extends HTMLElement {
       return;
     }
 
-    // 2. Obsługa Firmware Update
     if (selector === '#firmware-update-txt') {
       const isUpdate = entity.state === 'on';
       const inProgress = entity.attributes.in_progress === true;
@@ -677,9 +615,7 @@ class WattpilotCard extends HTMLElement {
       el.style.color = isUpdate ? "#4caf50" : "inherit";
 
       const vTxt = this.shadowRoot.querySelector('#firmware-version-txt') as HTMLElement;
-      if (vTxt) {
-        vTxt.innerText = `${entity.attributes.installed_version || '--'} / ${entity.attributes.latest_version || '--'}`;
-      }
+      if (vTxt) vTxt.innerText = `${entity.attributes.installed_version || '--'} / ${entity.attributes.latest_version || '--'}`;
 
       const btn = this.shadowRoot.querySelector('#btn-install-update') as HTMLElement;
       const progCont = this.shadowRoot.querySelector('#update-progress-container') as HTMLElement;
@@ -700,12 +636,9 @@ class WattpilotCard extends HTMLElement {
       return;
     }
 
-    // 3. Obsługa HA-SWITCH
     if (el.tagName === 'HA-SWITCH') {
       el.checked = entity.state === 'on';
     } 
-    
-    // 4. Obsługa SELECT (Dynamiczne budowanie listy opcji jeśli pusta)
     else if (el.tagName === 'SELECT') {
       if (el.children.length === 0 && entity.attributes.options) {
         entity.attributes.options.forEach((opt: string) => {
@@ -717,8 +650,6 @@ class WattpilotCard extends HTMLElement {
       }
       if (document.activeElement !== el) el.value = entity.state;
     } 
-    
-    // 5. Obsługa INPUT (przeliczanie jednostek do wyświetlenia)
     else if (el.tagName === 'INPUT') {
       if (document.activeElement === el) return;
 
@@ -734,41 +665,40 @@ class WattpilotCard extends HTMLElement {
       }
 
       let displayVal = entity.state;
-      if (isTime) {
-        displayVal = helpers.msToMin(entity.state);
-      } else if (isPower) {
-        displayVal = helpers.wToKw(entity.state);
-      } else if (isPrice) {
-        displayVal = helpers.centsToEuro(entity.state);
-      }
+      // Poprawione wywołania helperów
+      if (isTime) displayVal = msToMin(entity.state);
+      else if (isPower) displayVal = wToKw(entity.state);
+      else if (isPrice) displayVal = centsToEuro(entity.state);
 
       el.value = displayVal;
 
-      // Aktualizacja towarzyszącego tekstu (suffix)
       const txtEl = this.shadowRoot.querySelector(`${selector}-txt`) as HTMLElement;
       if (txtEl) {
-        let suffix = '';
-        if (isTime) suffix = 'm';
-        else if (isPower) suffix = 'kW';
-        else if (isPrice) suffix = '€';
-        else if (selector.includes('lvl')) suffix = 'A';
-        else suffix = '%';
-
+        let suffix = isTime ? 'm' : isPower ? 'kW' : isPrice ? '€' : selector.includes('lvl') ? 'A' : '%';
         txtEl.innerText = `${displayVal}${suffix}`;
       }
     }
   }
   
   private bindEvents() {
-    this.querySelectorAll('.mode-btn').forEach(btn => {
-      btn.onclick = () => this._hass.callService('select', 'select_option', { entity_id: this.config.entity_mode, option: btn.dataset.val });
+    // Poprawka: Wszystkie querySelector muszą działać na shadowRoot
+    const root = this.shadowRoot;
+    if (!root) return;
+
+    root.querySelectorAll('.mode-btn').forEach(btn => {
+      (btn as HTMLElement).onclick = () => this._hass.callService('select', 'select_option', { entity_id: this.config.entity_mode, option: (btn as HTMLElement).dataset.val });
     });
 
-    this.querySelector('#btn-start').onclick = () => this._hass.callService('button', 'press', { entity_id: this.config.entity_start });
-    this.querySelector('#btn-stop').onclick = () => this._hass.callService('button', 'press', { entity_id: this.config.entity_stop });
-    this.querySelector('#btn-force').onclick = () => this._hass.callService('button', 'press', { entity_id: this.config.entity_force });
+    const btnStart = root.querySelector('#btn-start') as HTMLElement;
+    if (btnStart) btnStart.onclick = () => this._hass.callService('button', 'press', { entity_id: this.config.entity_start });
     
-    const btnRestart = this.querySelector('#btn-restart');
+    const btnStop = root.querySelector('#btn-stop') as HTMLElement;
+    if (btnStop) btnStop.onclick = () => this._hass.callService('button', 'press', { entity_id: this.config.entity_stop });
+    
+    const btnForce = root.querySelector('#btn-force') as HTMLElement;
+    if (btnForce) btnForce.onclick = () => this._hass.callService('button', 'press', { entity_id: this.config.entity_force });
+    
+    const btnRestart = root.querySelector('#btn-restart') as HTMLElement;
     if (btnRestart) {
       btnRestart.onclick = () => {
         if(confirm("Are you sure you want to restart Wattpilot?")) {
@@ -777,47 +707,47 @@ class WattpilotCard extends HTMLElement {
       };
     }
 
-    const installBtn = this.querySelector('#btn-install-update');
+    const installBtn = root.querySelector('#btn-install-update') as HTMLButtonElement;
     if (installBtn) {
       installBtn.addEventListener('click', () => {
         const entityId = this.config.entity_firmware_update;
         if (entityId) {
-          this._hass.callService('update', 'install', {
-            entity_id: entityId
-          });
-          // Opcjonalna blokada przycisku po kliknięciu
+          this._hass.callService('update', 'install', { entity_id: entityId });
           installBtn.disabled = true;
           installBtn.innerText = "Starting...";
         }
       });
     }
 
-    // Specjalna obsługa suwaka głównego prądu
-    const currSlider = this.querySelector('#slider-current');
-    currSlider.oninput = (e) => {
-      const val = parseInt(e.target.value);
-      this._isInteractingC = true; 
-      this._currentAmps = val;     
-      this.updateWhiteSlider(val);
-      this.renderLeds();           
-    };
-    currSlider.onchange = (e) => {
-      this._hass.callService('number', 'set_value', { entity_id: this.config.entity_current, value: parseInt(e.target.value) });
-      setTimeout(() => { this._isInteractingC = false; }, 1000);
-    };
+    const currSlider = root.querySelector('#slider-current') as HTMLInputElement;
+    if (currSlider) {
+      currSlider.oninput = (e: any) => {
+        const val = parseInt(e.target.value);
+        this._isInteractingC = true; 
+        this._currentAmps = val;     
+        this.updateWhiteSlider(val);
+        this.renderLeds();            
+      };
+      currSlider.onchange = (e: any) => {
+        this._hass.callService('number', 'set_value', { entity_id: this.config.entity_current, value: parseInt(e.target.value) });
+        setTimeout(() => { this._isInteractingC = false; }, 1000);
+      };
+    }
 
-    this.querySelectorAll('#phase-ctrl .phase-btn').forEach(btn => {
-      btn.onclick = () => this._hass.callService('select', 'select_option', { entity_id: this.config.entity_phase, option: btn.dataset.val });
+    root.querySelectorAll('#phase-ctrl .phase-btn').forEach(btn => {
+      (btn as HTMLElement).onclick = () => this._hass.callService('select', 'select_option', { entity_id: this.config.entity_phase, option: (btn as HTMLElement).dataset.val });
     });
 
-    // Sub-menu logka
-    this.querySelectorAll('.sub-menu-trigger').forEach(trigger => {
-      trigger.onclick = () => {
-        const targetId = trigger.dataset.target;
-        const targetPanel = this.querySelector(`#${targetId}`);
+    root.querySelectorAll('.sub-menu-trigger').forEach(trigger => {
+      (trigger as HTMLElement).onclick = () => {
+        const targetId = (trigger as HTMLElement).dataset.target;
+        if (!targetId) return;
+        const targetPanel = root.querySelector(`#${targetId}`);
+        if (!targetPanel) return;
+
         const isActive = trigger.classList.contains('active');
-        this.querySelectorAll('.sub-menu-trigger').forEach(t => t.classList.remove('active'));
-        this.querySelectorAll('.sub-panel').forEach(p => p.classList.add('hidden'));
+        root.querySelectorAll('.sub-menu-trigger').forEach(t => t.classList.remove('active'));
+        root.querySelectorAll('.sub-panel').forEach(p => p.classList.add('hidden'));
         if (!isActive) {
           trigger.classList.add('active');
           targetPanel.classList.remove('hidden');
@@ -825,7 +755,7 @@ class WattpilotCard extends HTMLElement {
       };
     });
 
-    // Bindowanie wszystkich nowych elementów
+    // Bindowanie wszystkich elementów interfejsu
     this.bindUIElement('#target-soc', 'input_number', 'set_value');
     this.bindUIElement('#min-soc', 'input_number', 'set_value');
     this.bindUIElement('#boost-limit', 'number', 'set_value');
@@ -837,13 +767,10 @@ class WattpilotCard extends HTMLElement {
     this.bindUIElement('#phase-power-lvl', 'number', 'set_value');
     this.bindUIElement('#start-at', 'number', 'set_value');
     this.bindUIElement('#max-price-input', 'number', 'set_value');
-
     this.bindUIElement('#lock-sel', 'select', 'select_option', 'option');
     this.bindUIElement('#cable-sel', 'select', 'select_option', 'option');
     this.bindUIElement('#boost-type-sel', 'select', 'select_option', 'option');
-
     this.bindUIElement('#next-trip-time', 'input_datetime', 'set_datetime', 'time');
-
     this.bindUIElement('#hotspot-sw', 'switch', '');
     this.bindUIElement('#pause-sw', 'switch', '');
     this.bindUIElement('#boost-sw', 'switch', '');
@@ -860,12 +787,10 @@ class WattpilotCard extends HTMLElement {
     if (!this._hass || !this.config || !this.shadowRoot) return;
     const states = this._hass.states;
 
-    // 1. Podstawowy status urządzenia
     const status = states[this.config.entity_status]?.state || 'Unknown';
     const isCharging = states[this.config.entity_charging]?.state === 'on' || 
                        status.toLowerCase().includes('charging');
 
-    // 2. Inicjalizacja kolumn bocznych (jeśli puste) i ich aktualizacja
     const leftCol = this.shadowRoot.querySelector('#left-col');
     if (leftCol && leftCol.innerHTML === '') {
       this.renderSideColumn('left');
@@ -874,7 +799,6 @@ class WattpilotCard extends HTMLElement {
     this.updateSideColumn('left');
     this.updateSideColumn('right');
 
-    // 3. Moc i Fazy
     const pEnt = states[this.config.entity_power];
     let totalA_text = "0.0";
     let phaseText = "Auto";
@@ -904,7 +828,6 @@ class WattpilotCard extends HTMLElement {
       if (phaseInfo) phaseInfo.innerText = phaseText;
     }
 
-    // 4. Logika Baterii (SOC) i wizualizacja paska
     const socRaw = states[this.config.entity_soc]?.state || 0;
     const socMaxRaw = states[this.config.entity_soc_max]?.state || 
                      (states[this.config.entity_target_soc]?.state || 100);
@@ -921,7 +844,6 @@ class WattpilotCard extends HTMLElement {
       const s = Math.max(0, Math.min(100, soc));
       socBar.style.width = `${s}%`;
 
-      // Dynamika ikon baterii
       let batLevel = Math.round(s / 10) * 10;
       let iconStr = isCharging ? 'mdi:battery-charging' : 'mdi:battery';
       if (s >= 100) iconStr = isCharging ? 'mdi:battery-charging-100' : 'mdi:battery';
@@ -929,7 +851,6 @@ class WattpilotCard extends HTMLElement {
       else iconStr += `-${batLevel}`;
       socIcon.setAttribute('icon', iconStr);
 
-      // Obliczanie koloru gradientu (od czerwonego do zielonego/żółtego)
       let r, g, b;
       if (s < 50) {
         const p = s / 50;
@@ -958,7 +879,6 @@ class WattpilotCard extends HTMLElement {
       socIcon.style.color = dynamicColor;
     }
 
-    // 5. Czas do końca ładowania
     const chargeEndState = states[this.config.entity_charge_end];
     const chargeEndEl = this.shadowRoot.querySelector('#charge-end-text') as HTMLElement;
     if (chargeEndEl) {
@@ -975,7 +895,6 @@ class WattpilotCard extends HTMLElement {
       } else chargeEndEl.innerText = '';
     }
 
-    // 6. Główny suwak prądu (synchronizacja z HA)
     const currEnt = states[this.config.entity_current];
     if (currEnt && !this._isInteractingC) {
       const curr = parseInt(currEnt.state, 10) || 6;
@@ -985,7 +904,6 @@ class WattpilotCard extends HTMLElement {
       this.updateWhiteSlider(curr);
     }
 
-    // 7. Zasięg (Range)
     const rangeEnt = states[this.config.entity_range];
     if (rangeEnt) {
       const range = Math.round(parseFloat(rangeEnt.state));
@@ -996,7 +914,6 @@ class WattpilotCard extends HTMLElement {
       if (rangeTextEl) rangeTextEl.innerText = `${range}/${Math.round(parseFloat(rangeMax as string))} km`;
     }
 
-    // 8. Status Badges i przyciski Start/Stop
     const reasonEnt = states[this.config.entity_reason];
     const reasonText = reasonEnt ? reasonEnt.state : "Fronius Wattpilot";
     const reasonBadge = this.shadowRoot.querySelector('#reason-badge') as HTMLElement;
@@ -1019,11 +936,9 @@ class WattpilotCard extends HTMLElement {
       }
     }
 
-    // Ukrywanie przycisków w zależności od ładowania
     this.shadowRoot.querySelector('#btn-start')?.classList.toggle('hidden', isCharging);
     this.shadowRoot.querySelector('#btn-stop')?.classList.toggle('hidden', !isCharging);
 
-    // Aktywne tryby i fazy
     const mode = states[this.config.entity_mode]?.state;
     this.shadowRoot.querySelectorAll('.mode-btn').forEach(b => 
       (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.val === mode)
@@ -1034,11 +949,9 @@ class WattpilotCard extends HTMLElement {
       (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.val === pMode)
     );
 
-    // 9. Aktualizacja pierścienia LED
     this.updateLedRing(status, this._currentAmps, mode, phaseText, reasonText);
     this.renderLeds();
 
-    // 10. Aktualizacja wszystkich paneli ustawień (użycie helpera UI)
     const uiElements = [
       '#target-soc', '#min-soc', '#boost-limit', '#next-trip-pwr', '#next-trip-time', 
       '#min-time', '#phase-delay', '#phase-interval', '#pv-threshold', 
@@ -1049,7 +962,6 @@ class WattpilotCard extends HTMLElement {
     ];
     uiElements.forEach(sel => this.updateUIElement(sel, states));
 
-    // 11. Panel WiFi i Diagnostyka
     const updateTxt = (id: string, val: string) => {
       const el = this.shadowRoot?.querySelector(id) as HTMLElement;
       if (el) el.innerText = val;
@@ -1062,7 +974,6 @@ class WattpilotCard extends HTMLElement {
     const totalCharged = states[this.config.entity_total_charged]?.state || '0';
     updateTxt('#total-charged-txt', `${Math.round(parseFloat(totalCharged))} kWh`);
 
-    // Diagnostyka Faz (L1, L2, L3, N)
     if (pEnt && pEnt.attributes) {
       const attr = pEnt.attributes;
       const formatPhase = (prefix: string) => {
@@ -1090,8 +1001,10 @@ class WattpilotCard extends HTMLElement {
   }
 
   disconnectedCallback() {
-    if (this.animTimer) {
-      cancelAnimationFrame(this.animTimer);
+    // Poprawka wycieku pamięci: używamy clearInterval na _mainLoop, zamiast na nieistniejącym animTimer
+    if (this._mainLoop) {
+      clearInterval(this._mainLoop);
+      this._mainLoop = null;
     }
   }
   
