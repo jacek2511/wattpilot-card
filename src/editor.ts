@@ -4,38 +4,49 @@ import { property, state } from 'lit/decorators.js';
 export class WattpilotCardEditor extends LitElement {
   @property({ attribute: false }) public hass?: any;
   @state() private _config?: any;
+  @state() private _helpersLoaded = false;
 
   public setConfig(config: any): void {
     this._config = config;
   }
 
+  protected async firstUpdated() {
+    await (window as any).loadCardHelpers();
+    this._helpersLoaded = true;
+  }
+
   private _valueChanged(ev: any): void {
     if (!this._config || !this.hass) return;
+
     const target = ev.target;
     const configKey = target.configValue;
-    
-    // Pobieramy wartość z detali zdarzenia (standard HA) lub bezpośrednio z targetu
-    const newValue = ev.detail?.value !== undefined ? ev.detail.value : target.value;
+
+    const newValue =
+      ev.detail?.value !== undefined ? ev.detail.value : target.value;
 
     if (this._config[configKey] === newValue) return;
 
     const newConfig = { ...this._config };
+
     if (newValue === "" || newValue === undefined) {
       delete newConfig[configKey];
     } else {
       newConfig[configKey] = newValue;
     }
 
-    const event = new CustomEvent('config-changed', {
-      detail: { config: newConfig },
-      bubbles: true,
-      composed: true,
-    });
-    this.dispatchEvent(event);
+    this.dispatchEvent(
+      new CustomEvent('config-changed', {
+        detail: { config: newConfig },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   render(): TemplateResult {
-    if (!this.hass || !this._config) return html``;
+    if (!this.hass || !this._config || !this._helpersLoaded) {
+      return html``;
+    }
 
     const groups = [
       {
@@ -130,14 +141,20 @@ export class WattpilotCardEditor extends LitElement {
           <ha-expansion-panel .header=${group.label} outlined>
             <div class="content">
               ${group.fields.map(f => html`
-                <ha-entity-picker
-                  .label="${f.label}"
+                <hui-entity-picker
                   .hass=${this.hass}
+                  .label=${f.label}
                   .value=${this._config[f.key] || ''}
                   .configValue=${f.key}
+                  .includeDomains=${[
+                    'sensor',
+                    'switch',
+                    'number',
+                    'select',
+                    'binary_sensor'
+                  ]}
                   @value-changed=${this._valueChanged}
-                  allow-custom-entity
-                ></ha-entity-picker>
+                ></hui-entity-picker>
               `)}
             </div>
           </ha-expansion-panel>
@@ -146,8 +163,7 @@ export class WattpilotCardEditor extends LitElement {
         <ha-expansion-panel header="Side Columns (Left/Right)" outlined>
           <div class="content">
             <p class="note">
-              Configuration for left1-left5 and right1-right5 (icons, color rules, attributes) 
-              should be managed via the YAML Code Editor.
+              Configuration for left/right columns should be done via YAML.
             </p>
           </div>
         </ha-expansion-panel>
@@ -161,25 +177,27 @@ export class WattpilotCardEditor extends LitElement {
       flex-direction: column;
       gap: 12px;
     }
+
     ha-expansion-panel {
       display: block;
       border: 1px solid var(--divider-color);
       border-radius: 8px;
       background: var(--card-background-color);
     }
+
     .content {
       display: flex;
       flex-direction: column;
       gap: 16px;
       padding: 16px;
       background: var(--primary-background-color);
-      /* Kluczowa zmiana: min-height wymusza na przeglądarce renderowanie zawartości */
-      min-height: 50px;
     }
-    ha-entity-picker {
+
+    hui-entity-picker {
       display: block;
       width: 100%;
     }
+
     .note {
       font-size: 12px;
       color: var(--secondary-text-color);
