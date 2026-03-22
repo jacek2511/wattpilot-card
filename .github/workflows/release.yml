@@ -1,0 +1,40 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Aktualizacja do v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4 # Aktualizacja do v4
+        with:
+          node-version: '24' # Twoja wymagana wersja Node.js
+          cache: 'npm' # Automatyczne cachowanie zależności
+
+      - name: Install dependencies
+        run: npm ci # 'npm ci' jest szybszy i pewniejszy w środowiskach CI niż 'npm install'
+
+      - name: Build project
+        run: npm run build
+
+      - name: Compress JS file to GZ
+        # -9 oznacza maksymalną kompresję
+        # -c wysyła wynik na standardowe wyjście, co przekierowujemy do pliku .gz
+        # Dzięki temu zachowujemy oryginał .js w dist dla bezpieczeństwa logów
+        run: |
+          gzip -9 -c dist/wattpilot-card.js > dist/wattpilot-card.js.gz
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2 # Aktualizacja do v2
+        with:
+          files: dist/wattpilot-card.js.gz
+          generate_release_notes: true # Automatycznie stworzy listę zmian z commitów
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
