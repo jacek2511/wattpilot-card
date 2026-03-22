@@ -10,14 +10,13 @@ export class WattpilotCardEditor extends LitElement {
   }
 
   private _getValue(key: string) {
-    return this._config ? this._config[key] : '';
+    return this._config && this._config[key] !== undefined ? this._config[key] : '';
   }
 
-  // Zmieniono sygnaturę, aby bezpiecznie przyjmować klucz konfiguracji bezpośrednio z renderera
   private _valueChanged(ev: CustomEvent, configKey: string): void {
     if (!this._config || !this.hass) return;
     
-    // ha-entity-picker przekazuje nową wartość w ev.detail.value
+    // ha-selector przekazuje nową wartość również w ev.detail.value
     const newValue = ev.detail.value;
 
     if (this._getValue(configKey) === newValue) return;
@@ -134,13 +133,14 @@ export class WattpilotCardEditor extends LitElement {
             <div class="group-label">${group.label}</div>
             <div class="grid">
               ${group.fields.map(f => html`
-                <ha-entity-picker
-                  .label=${f.label}
+                <ha-selector
                   .hass=${this.hass}
+                  .selector=${{ entity: {} }}
                   .value=${this._getValue(f.key)}
+                  .label=${f.label}
+                  .required=${false}
                   @value-changed=${(ev: CustomEvent) => this._valueChanged(ev, f.key)}
-                  allow-custom-entity
-                ></ha-entity-picker>
+                ></ha-selector>
               `)}
             </div>
           </div>
@@ -162,7 +162,7 @@ export class WattpilotCardEditor extends LitElement {
     .group { border: 1px solid var(--divider-color); border-radius: 8px; padding: 10px; background: var(--card-background-color); }
     .group-label { font-weight: bold; margin-bottom: 8px; color: var(--primary-color); text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    ha-entity-picker { display: block; width: 100%; }
+    ha-selector { display: block; width: 100%; }
     @media (max-width: 450px) { .grid { grid-template-columns: 1fr; } }
   `;
 }
