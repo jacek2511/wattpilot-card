@@ -4,15 +4,9 @@ import { property, state } from 'lit/decorators.js';
 export class WattpilotCardEditor extends LitElement {
   @property({ attribute: false }) public hass?: any;
   @state() private _config?: any;
-  @state() private _helpersLoaded = false;
 
   public setConfig(config: any): void {
-    this._config = config;
-  }
-
-  protected async firstUpdated() {
-    await (window as any).loadCardHelpers();
-    this._helpersLoaded = true;
+    this._config = JSON.parse(JSON.stringify(config));
   }
 
   private _valueChanged(ev: any): void {
@@ -44,7 +38,7 @@ export class WattpilotCardEditor extends LitElement {
   }
 
   render(): TemplateResult {
-    if (!this.hass || !this._config || !this._helpersLoaded) {
+    if (!this.hass || !this._config) {
       return html``;
     }
 
@@ -141,7 +135,7 @@ export class WattpilotCardEditor extends LitElement {
           <ha-expansion-panel .header=${group.label} outlined>
             <div class="content">
               ${group.fields.map(f => html`
-                <hui-entity-picker
+                <ha-entity-picker
                   .hass=${this.hass}
                   .label=${f.label}
                   .value=${this._config[f.key] || ''}
@@ -151,10 +145,15 @@ export class WattpilotCardEditor extends LitElement {
                     'switch',
                     'number',
                     'select',
-                    'binary_sensor'
+                    'binary_sensor',
+                    'button',
+                    'input_number',
+                    'input_datetime',
+                    'update'
                   ]}
                   @value-changed=${this._valueChanged}
-                ></hui-entity-picker>
+                  allow-custom-entity
+                ></ha-entity-picker>
               `)}
             </div>
           </ha-expansion-panel>
@@ -191,9 +190,12 @@ export class WattpilotCardEditor extends LitElement {
       gap: 16px;
       padding: 16px;
       background: var(--primary-background-color);
+      /* Dodano min-height, aby zapobiec zapadaniu się zawartości przy asynchronicznym ładowaniu */
+      min-height: 50px;
     }
 
-    hui-entity-picker {
+    /* Zmieniono z hui-entity-picker na ha-entity-picker */
+    ha-entity-picker {
       display: block;
       width: 100%;
     }
