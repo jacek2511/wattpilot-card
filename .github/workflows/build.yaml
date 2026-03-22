@@ -1,16 +1,31 @@
-name: Build JS
-on: [push]
+name: Build Wattpilot Card
+
+on:
+  push:
+    branches:
+      - main  # lub master, zależnie jak nazywa się Twoja główna gałąź
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
-      - run: npm run build
-      - uses: actions/upload-artifact@v3
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build
+
+      - name: Upload compiled JS
+        uses: actions/upload-artifact@v4
         with:
-          name: compiled-js
-          path: dist/wattpilot-card.js
+          name: wattpilot-card-js
+          path: dist/wattpilot-card.js # Ścieżka do pliku wynikowego
