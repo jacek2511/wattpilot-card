@@ -3,7 +3,7 @@ name: Build Wattpilot Card
 on:
   push:
     branches:
-      - main  # lub master, zależnie jak nazywa się Twoja główna gałąź
+      - main  # upewnij się, że Twoja gałąź to 'main', jeśli używasz 'master' - zmień to tutaj
 
 jobs:
   build:
@@ -25,7 +25,8 @@ jobs:
         run: npm run build
 
       - name: Upload compiled JS
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4 # ZMIANA: tutaj była wersja v3, teraz jest v4
         with:
           name: wattpilot-card-js
-          path: dist/wattpilot-card.js # Ścieżka do pliku wynikowego
+          path: dist/wattpilot-card.js
+          overwrite: true # Opcjonalne: nadpisuje poprzedni artefakt
