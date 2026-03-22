@@ -4,10 +4,15 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch: # Umożliwia ręczne uruchomienie w zakładce Actions
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # KLUCZOWA POPRAWKA: Nadanie uprawnień do tworzenia wydań (Release)
+    permissions:
+      contents: write
+      
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -15,26 +20,28 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24  
-          always-auth: false
+          node-version: 24
+          # Nie używamy cache, bo nie masz pliku lock
 
       - name: Install dependencies
+        # --no-package-lock zapobiega błędom przy braku pliku lock
         run: npm install --no-package-lock
 
       - name: Build project
         run: npm run build
 
       - name: Compress JS file to GZ
-        # -9 oznacza maksymalną kompresję
-        # -c wysyła wynik na standardowe wyjście, co przekierowujemy do pliku .gz
-        # Dzięki temu zachowujemy oryginał .js w dist dla bezpieczeństwa logów
         run: |
+          # Sprawdź czy folder dist istnieje, jeśli nie - stwórz go (zależy od Twojego buildera)
+          mkdir -p dist
           gzip -9 -c dist/wattpilot-card.js > dist/wattpilot-card.js.gz
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2 # Aktualizacja do v2
+        # Ten krok wykona się tylko jeśli wypchniesz TAG (np. v1.0.0)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/wattpilot-card.js.gz
-          generate_release_notes: true # Automatycznie stworzy listę zmian z commitów
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
