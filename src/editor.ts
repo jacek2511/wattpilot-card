@@ -13,16 +13,17 @@ export class WattpilotCardEditor extends LitElement {
     return this._config ? this._config[key] : '';
   }
 
-  private _valueChanged(ev: any): void {
+  // Zmieniono sygnaturę, aby bezpiecznie przyjmować klucz konfiguracji bezpośrednio z renderera
+  private _valueChanged(ev: CustomEvent, configKey: string): void {
     if (!this._config || !this.hass) return;
-    const target = ev.target;
-    const configKey = target.configValue;
-    const newValue = ev.detail?.value !== undefined ? ev.detail.value : target.value;
+    
+    // ha-entity-picker przekazuje nową wartość w ev.detail.value
+    const newValue = ev.detail.value;
 
     if (this._getValue(configKey) === newValue) return;
 
     const newConfig = { ...this._config };
-    if (newValue === "" || newValue === undefined) {
+    if (newValue === "" || newValue === undefined || newValue === null) {
       delete newConfig[configKey];
     } else {
       newConfig[configKey] = newValue;
@@ -129,56 +130,40 @@ export class WattpilotCardEditor extends LitElement {
     return html`
       <div class="card-config">
         ${groups.map(group => html`
-          <ha-expansion-panel .header=${group.label} outlined>
-            <div class="content">
+          <div class="group">
+            <div class="group-label">${group.label}</div>
+            <div class="grid">
               ${group.fields.map(f => html`
                 <ha-entity-picker
-                  .label="${f.label}"
+                  .label=${f.label}
                   .hass=${this.hass}
                   .value=${this._getValue(f.key)}
-                  .configValue=${f.key}
-                  @value-changed=${this._valueChanged}
+                  @value-changed=${(ev: CustomEvent) => this._valueChanged(ev, f.key)}
                   allow-custom-entity
                 ></ha-entity-picker>
               `)}
             </div>
-          </ha-expansion-panel>
+          </div>
         `)}
 
-        <ha-expansion-panel header="Side Columns (Left/Right)" outlined>
-          <div class="content">
-            <p style="font-size: 12px; color: var(--secondary-text-color); margin: 0;">
-              Configuration for left1-left5 and right1-right5 (icons, color rules, attributes) 
-              should be managed via the YAML Code Editor.
-            </p>
-          </div>
-        </ha-expansion-panel>
+        <div class="group">
+          <div class="group-label">Side Columns (Left/Right)</div>
+          <p style="font-size: 12px; color: var(--secondary-text-color); margin: 0;">
+            Configuration for left1-left5 and right1-right5 (icons, color rules, attributes) 
+            should be managed via the YAML Code Editor.
+          </p>
+        </div>
       </div>
     `;
   }
 
   static styles = css`
-    .card-config {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    ha-expansion-panel {
-      display: block;
-      border: 1px solid var(--divider-color);
-      border-radius: 8px;
-      background: var(--card-background-color);
-    }
-    .content {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      padding: 12px;
-      background: var(--primary-background-color);
-    }
-    ha-entity-picker {
-      width: 100%;
-    }
+    .card-config { display: flex; flex-direction: column; gap: 12px; }
+    .group { border: 1px solid var(--divider-color); border-radius: 8px; padding: 10px; background: var(--card-background-color); }
+    .group-label { font-weight: bold; margin-bottom: 8px; color: var(--primary-color); text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    ha-entity-picker { display: block; width: 100%; }
+    @media (max-width: 450px) { .grid { grid-template-columns: 1fr; } }
   `;
 }
 
