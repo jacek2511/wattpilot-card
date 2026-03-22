@@ -1,14 +1,21 @@
 import { LitElement, html, css, TemplateResult } from 'lit';
 
-const Lit = (window as any).LitElement || Object.getPrototypeOf(customElements.get("ha-panel-lovelace")).LitElement;
-const { html: litHtml, css: litCss } = (window as any).litGui || (window as any).LitElement;
-
-export class WattpilotCardEditor extends Lit {
+export class WattpilotCardEditor extends LitElement {
+  // Deklarujemy właściwości dla LitElement (zamiast dekoratorów)
   static get properties() {
     return {
       hass: { attribute: false },
       _config: { state: true }
     };
+  }
+
+  // Wewnętrzne zmienne stanu
+  private hass: any;
+  private _config: any;
+
+  public setConfig(config: any): void {
+    // Kopia głęboka jest kluczowa dla odświeżania widoku
+    this._config = JSON.parse(JSON.stringify(config));
   }
 
   private _valueChanged(ev: any): void {
@@ -17,8 +24,8 @@ export class WattpilotCardEditor extends Lit {
     const target = ev.target;
     const configKey = target.configValue;
 
-    const newValue =
-      ev.detail?.value !== undefined ? ev.detail.value : target.value;
+    // Pobranie nowej wartości z eventu
+    const newValue = ev.detail?.value !== undefined ? ev.detail.value : target.value;
 
     if (this._config[configKey] === newValue) return;
 
@@ -30,6 +37,7 @@ export class WattpilotCardEditor extends Lit {
       newConfig[configKey] = newValue;
     }
 
+    // Wysłanie nowej konfiguracji do głównej karty
     this.dispatchEvent(
       new CustomEvent('config-changed', {
         detail: { config: newConfig },
@@ -143,15 +151,8 @@ export class WattpilotCardEditor extends Lit {
                   .value=${this._config[f.key] || ''}
                   .configValue=${f.key}
                   .includeDomains=${[
-                    'sensor',
-                    'switch',
-                    'number',
-                    'select',
-                    'binary_sensor',
-                    'button',
-                    'input_number',
-                    'input_datetime',
-                    'update'
+                    'sensor', 'switch', 'number', 'select', 'binary_sensor', 
+                    'button', 'input_number', 'input_datetime', 'update'
                   ]}
                   @value-changed=${this._valueChanged}
                   allow-custom-entity
@@ -160,14 +161,6 @@ export class WattpilotCardEditor extends Lit {
             </div>
           </ha-expansion-panel>
         `)}
-
-        <ha-expansion-panel header="Side Columns (Left/Right)" outlined>
-          <div class="content">
-            <p class="note">
-              Configuration for left/right columns should be done via YAML.
-            </p>
-          </div>
-        </ha-expansion-panel>
       </div>
     `;
   }
@@ -178,34 +171,22 @@ export class WattpilotCardEditor extends Lit {
       flex-direction: column;
       gap: 12px;
     }
-
     ha-expansion-panel {
       display: block;
       border: 1px solid var(--divider-color);
       border-radius: 8px;
       background: var(--card-background-color);
     }
-
     .content {
       display: flex;
       flex-direction: column;
       gap: 16px;
       padding: 16px;
       background: var(--primary-background-color);
-      /* Dodano min-height, aby zapobiec zapadaniu się zawartości przy asynchronicznym ładowaniu */
-      min-height: 50px;
     }
-
-    /* Zmieniono z hui-entity-picker na ha-entity-picker */
     ha-entity-picker {
       display: block;
       width: 100%;
-    }
-
-    .note {
-      font-size: 12px;
-      color: var(--secondary-text-color);
-      margin: 0;
     }
   `;
 }
