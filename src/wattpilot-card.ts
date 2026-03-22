@@ -16,7 +16,7 @@ interface WattpilotConfig {
 
 class WattpilotCard extends HTMLElement {
   private _hass!: HomeAssistant;
-  public config!: WattpilotConfig;
+  private _config!: WattpilotConfig;
   private contentLoaded: boolean = false;
   
   private animIdx: number = 0;
@@ -89,19 +89,19 @@ class WattpilotCard extends HTMLElement {
     };
   }
 
-  public setConfig(config) {
-    if (!config.entity_status) {
-      throw new Error("Proszę zdefiniuj encję statusu (entity_status)");
-    }
+  public setConfig(config: WattpilotConfig) {
     this._config = {
-      name: 'Wattpilot', 
+      name: 'Wattpilot',
+      ...WattpilotCard.getStubConfig(),
       ...config
     };
   }
   
   set hass(hass: HomeAssistant) {
     this._hass = hass;
-
+    
+    if (!this._config) return;
+    
     if (!this.contentLoaded && this.shadowRoot) {
       this.render();
       this.contentLoaded = true;
