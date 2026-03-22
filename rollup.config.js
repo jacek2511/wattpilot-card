@@ -10,12 +10,12 @@ export default {
     sourcemap: false,
     inlineDynamicImports: true,
   },
-  // KLUCZOWE: Upewnij się, że ta lista jest PUSTA
   external: [], 
   plugins: [
     resolve({
       browser: true,
-      preferBuiltins: false
+      preferBuiltins: false,
+      exportConditions: ['browser', 'development', 'module', 'import']
     }),
     typescript({
       declaration: false,
@@ -23,10 +23,5 @@ export default {
     terser({
       format: { comments: false },
     })
-  ],
-  // Dodaj to, aby widzieć w logach Actions, jeśli coś idzie nie tak z importem
-  onwarn(warning, warn) {
-    if (warning.code === 'UNRESOLVED_IMPORT') throw new Error(warning.message);
-    warn(warning);
-  }
+  ]
 };
