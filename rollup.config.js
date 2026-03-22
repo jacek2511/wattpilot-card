@@ -5,13 +5,18 @@ import terser from '@rollup/plugin-terser';
 export default {
   input: 'src/wattpilot-card.ts',
   output: {
-    dir: 'dist',
+    file: 'dist/wattpilot-card.js',
     format: 'es',
-    sourcemap: false
+    sourcemap: false,
+    inlineDynamicImports: true,
   },
   plugins: [
     resolve(),
     typescript(),
-    terser()
+    terser({
+      format: {
+        comments: false,
+      },
+    })
   ]
 };
