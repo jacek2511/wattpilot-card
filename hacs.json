@@ -1,6 +1,5 @@
 {
   "name": "Fronius Wattpilot Card",
   "filename": "wattpilot-card.js",
-  "zip_release": true,
   "render_readme": true
 }
