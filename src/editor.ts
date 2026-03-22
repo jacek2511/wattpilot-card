@@ -16,7 +16,6 @@ export class WattpilotCardEditor extends LitElement {
   private _valueChanged(ev: CustomEvent, configKey: string): void {
     if (!this._config || !this.hass) return;
     
-    // ha-selector przekazuje nową wartość również w ev.detail.value
     const newValue = ev.detail.value;
 
     if (this._getValue(configKey) === newValue) return;
@@ -42,6 +41,7 @@ export class WattpilotCardEditor extends LitElement {
     const groups = [
       {
         label: "Status & Core Entities",
+        icon: "hass:information-outline",
         fields: [
           { key: "entity_status", label: "Car State" },
           { key: "entity_reason", label: "Charging Reason" },
@@ -54,6 +54,7 @@ export class WattpilotCardEditor extends LitElement {
       },
       {
         label: "Main Controls",
+        icon: "hass:tune",
         fields: [
           { key: "entity_current", label: "Charging Current (Number)" },
           { key: "entity_mode", label: "Charging Mode (Select)" },
@@ -67,6 +68,7 @@ export class WattpilotCardEditor extends LitElement {
       },
       {
         label: "Vehicle & Battery",
+        icon: "hass:car-electric",
         fields: [
           { key: "entity_soc", label: "Current SoC" },
           { key: "entity_soc_max", label: "Maximum SoC" },
@@ -78,7 +80,8 @@ export class WattpilotCardEditor extends LitElement {
         ]
       },
       {
-        label: "Smart Features (Next Trip / Eco / PV)",
+        label: "Smart Features",
+        icon: "hass:solar-power",
         fields: [
           { key: "entity_next_trip_pwr", label: "Next Trip Energy" },
           { key: "entity_next_trip_timing", label: "Next Trip Time" },
@@ -92,6 +95,7 @@ export class WattpilotCardEditor extends LitElement {
       },
       {
         label: "Boost & Phase Settings",
+        icon: "hass:lightning-bolt-outline",
         fields: [
           { key: "entity_boost", label: "Boost Switch" },
           { key: "entity_boost_type", label: "Boost Type (Select)" },
@@ -103,6 +107,7 @@ export class WattpilotCardEditor extends LitElement {
       },
       {
         label: "Technical Settings",
+        icon: "hass:cog",
         fields: [
           { key: "entity_lock", label: "Lock Level (Select)" },
           { key: "entity_cable_unlock", label: "Cable Unlock (Select)" },
@@ -115,6 +120,7 @@ export class WattpilotCardEditor extends LitElement {
       },
       {
         label: "System & Network",
+        icon: "hass:wifi",
         fields: [
           { key: "entity_internal_error", label: "Internal Error Sensor" },
           { key: "entity_firmware_update", label: "Firmware Update" },
@@ -129,9 +135,13 @@ export class WattpilotCardEditor extends LitElement {
     return html`
       <div class="card-config">
         ${groups.map(group => html`
-          <div class="group">
-            <div class="group-label">${group.label}</div>
-            <div class="fields-container"> ${group.fields.map(f => html`
+          <ha-expansion-panel outlined>
+            <div slot="header" class="header-content">
+              <ha-icon .icon=${group.icon}></ha-icon>
+              <span>${group.label}</span>
+            </div>
+            <div class="fields-container">
+              ${group.fields.map(f => html`
                 <div class="field">
                   <ha-selector
                     .hass=${this.hass}
@@ -144,53 +154,57 @@ export class WattpilotCardEditor extends LitElement {
                 </div>
               `)}
             </div>
-          </div>
+          </ha-expansion-panel>
         `)}
         
-        <div class="group">
-          <div class="group-label">Side Columns (Left/Right)</div>
+        <ha-expansion-panel outlined header="Side Columns (Manual Only)">
+          <div slot="header" class="header-content">
+            <ha-icon icon="hass:code-braces"></ha-icon>
+            <span>Side Columns (Left/Right)</span>
+          </div>
           <p class="note">
             Configuration for left1-left5 and right1-right5 (icons, color rules, attributes) 
             should be managed via the YAML Code Editor.
           </p>
-        </div>
+        </ha-expansion-panel>
       </div>
     `;
   }
 
   static styles = css`
     :host {
-      /* To zapewnia, że edytor nie rozpycha się w nieskończoność */
       display: block;
     }
 
     .card-config {
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      padding: 8px 4px; /* Mały padding, żeby nie dotykało krawędzi */
+      gap: 8px; /* Mniejszy odstęp między panelami */
+      padding: 12px 0;
     }
 
-    .group {
-      border: 1px solid var(--divider-color);
+    ha-expansion-panel {
       border-radius: 8px;
-      padding: 12px;
-      background: var(--secondary-background-color);
+      --ha-card-border-radius: 8px;
     }
 
-    .group-label {
-      font-weight: bold;
-      margin-bottom: 12px;
+    .header-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 500;
+    }
+
+    .header-content ha-icon {
       color: var(--primary-color);
-      text-transform: uppercase;
-      font-size: 12px;
-      letter-spacing: 0.8px;
     }
 
     .fields-container {
       display: flex;
       flex-direction: column;
-      gap: 12px; /* Odstępy między selektorami */
+      gap: 12px;
+      padding: 16px;
+      background: var(--card-background-color);
     }
 
     .field {
@@ -206,16 +220,9 @@ export class WattpilotCardEditor extends LitElement {
       font-size: 12px;
       color: var(--secondary-text-color);
       margin: 0;
+      padding: 16px;
       line-height: 1.4;
-    }
-
-    /* Jeśli koniecznie chcesz dwie kolumny na bardzo szerokich ekranach (powyżej 800px) */
-    @media (min-width: 800px) {
-      /* .fields-container { 
-           display: grid; 
-           grid-template-columns: 1fr 1fr; 
-           gap: 12px; 
-         } */
+      background: var(--secondary-background-color);
     }
   `;
 }
