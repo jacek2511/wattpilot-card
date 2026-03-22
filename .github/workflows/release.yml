@@ -12,14 +12,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4 # Aktualizacja do v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4 # Aktualizacja do v4
         with:
-          node-version: '24' # Twoja wymagana wersja Node.js
-          cache: 'npm' # Automatyczne cachowanie zależności
+          node-version: 24 # Twoja wymagana wersja Node.js
 
       - name: Install dependencies
-        run: npm ci # 'npm ci' jest szybszy i pewniejszy w środowiskach CI niż 'npm install'
+        run: npm install # 'npm ci' jest szybszy i pewniejszy w środowiskach CI niż 'npm install'
 
       - name: Build project
         run: npm run build
