@@ -1,4 +1,4 @@
-export const styles = `
+export const cardStyles = `
   .card-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px 0 16px; margin-bottom: 10px; }
   .reason-badge { padding: 4px 12px; border: 1.5px solid rgba(150, 150, 150, 0.3); border-radius: 18px; font-size: 11px; font-weight: 400; color: var(--secondary-text-color, #a1a1aa); text-align: center; min-height: 18px; display: flex; align-items: center; margin-top: -5px; }
   .status-badge { padding: 4px 12px; border: 1.5px solid var(--primary-color); border-radius: 18px; font-size: 11px; text-transform: uppercase; font-weight: bold; color: var(--primary-color); margin-top: -5px; transition: border-color 0.3s, color 0.3s; }
