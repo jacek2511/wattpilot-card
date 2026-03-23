@@ -907,8 +907,8 @@ class WattpilotCard extends HTMLElement {
     const rangeEnt = states[this.config.entity_range];
     if (rangeEnt) {
       const range = Math.round(parseFloat(rangeEnt.state));
-      const rangeMax = this.config.entity_range_max ? 
-                       states[this.config.entity_range_max]?.state : 
+      const rangeMax = this.config.entity_max_range ? 
+                       states[this.config.entity_max_range]?.state : 
                        (rangeEnt.attributes.maxrange || 0);
       const rangeTextEl = this.shadowRoot.querySelector('#range-text') as HTMLElement;
       if (rangeTextEl) rangeTextEl.innerText = `${range}/${Math.round(parseFloat(rangeMax as string))} km`;
