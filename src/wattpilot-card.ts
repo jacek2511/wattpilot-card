@@ -23,7 +23,6 @@ class WattpilotCard extends HTMLElement {
   private _mainLoop: any = null;
   private _isInteractingC: boolean = false;
   
-  // Zmienne stanu do obsługi UI
   private _currentAmps: number = 6;
   private _currentStatus: string = '';
   private _currentMode: string = '';
@@ -66,6 +65,30 @@ class WattpilotCard extends HTMLElement {
     }
     this.updateData();
   }
+
+  private _getEl = <T extends Element>(selector: string): T | null => {
+    if (this._domCache[selector] === undefined) {
+      this._domCache[selector] = this.shadowRoot ? this.shadowRoot.querySelector(selector) : null;
+    }
+    return this._domCache[selector] as T | null;
+  };
+
+  private shouldUpdate = (oldHass: HomeAssistant | undefined, newHass: HomeAssistant): boolean => {
+    if (!oldHass) return true;
+    for (const key of Object.keys(this.config)) {
+      const entityId = this._getEntityId(key);
+      if (entityId && oldHass.states[entityId] !== newHass.states[entityId]) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  private _parseNum = (val: any, fallback: number = 0): number => {
+    if (val === undefined || val === null || val === '') return fallback;
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? fallback : Math.round(parsed);
+  };
   
   private _getEntityId(key: string): string | undefined {
     const val = this.config[key];
