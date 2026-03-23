@@ -1,4 +1,10 @@
-export const cardStyles = `
+import { css } from 'lit';
+
+export const cardStyles = css`
+  :host {
+    display: block;
+  }
+
   .card-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px 0 16px; margin-bottom: 10px; }
   .reason-badge { padding: 4px 12px; border: 1.5px solid rgba(150, 150, 150, 0.3); border-radius: 18px; font-size: 11px; font-weight: 400; color: var(--secondary-text-color, #a1a1aa); text-align: center; min-height: 18px; display: flex; align-items: center; margin-top: -5px; }
   .status-badge { padding: 4px 12px; border: 1.5px solid var(--primary-color); border-radius: 18px; font-size: 11px; text-transform: uppercase; font-weight: bold; color: var(--primary-color); margin-top: -5px; transition: border-color 0.3s, color 0.3s; }
@@ -110,5 +116,4 @@ export const cardStyles = `
   @keyframes breath { 0%, 100% { opacity: 1; } 50% { opacity: 0.1; } }
   @keyframes slide { from { background-position: 0 0, 0 0; } to { background-position: 30px 0, 0 0; } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-
 `;
