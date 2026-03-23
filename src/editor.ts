@@ -24,7 +24,6 @@ export class WattpilotCardEditor extends LitElement {
     return this._config?.[slot]?.[key] || '';
   }
 
-  // Funkcja czyszcząca pole (usuwa klucz z YAML)
   private _clearValue(key: string, field: string = 'entity'): void {
     const newConfig = JSON.parse(JSON.stringify(this._config));
     if (field === 'entity') {
@@ -82,7 +81,7 @@ export class WattpilotCardEditor extends LitElement {
     this._dispatch(newConfig);
   }
 
-  // --- OBSŁUGA COLOR RULES ---
+  // --- COLOR RULES ---
   private _addColorRule(slot: string) {
     const newConfig = JSON.parse(JSON.stringify(this._config));
     if (typeof newConfig[slot] !== 'object') {
@@ -241,11 +240,11 @@ export class WattpilotCardEditor extends LitElement {
     `;
   }
 
-  static styles = css`
+static styles = css`
     .card-config { display: flex; flex-direction: column; gap: 8px; }
-    ha-expansion-panel { border-radius: 8px; --ha-card-border-radius: 8px; }
+    ha-expansion-panel { border-radius: 8px; --ha-card-border-radius: 8px; border: 1px solid var(--divider-color); }
     
-    .header-content { display: flex; align-items: center; gap: 12px; font-weight: 500; }
+    .header-content { display: flex; align-items: center; gap: 12px; font-weight: 500; padding: 4px 0; }
     .header-icon { color: var(--primary-color); }
     
     .fields-container { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--card-background-color); }
@@ -255,21 +254,55 @@ export class WattpilotCardEditor extends LitElement {
     .selector-container { display: flex; align-items: center; gap: 4px; width: 100%; }
     ha-selector { flex-grow: 1; }
     
-    .clear-btn { color: var(--secondary-text-color); --mdc-icon-size: 20px; }
+    /* BUTTON (X) */
+    .clear-btn { 
+      color: var(--warning-color, #ff9800); 
+      --mdc-icon-size: 22px;
+      opacity: 0.8;
+    }
+    .clear-btn:hover { opacity: 1; background: rgba(255, 152, 0, 0.1); border-radius: 50%; }
+    
     .checkbox-container { display: flex; flex-direction: column; align-items: center; min-width: 40px; }
     .checkbox-container ha-icon { --mdc-icon-size: 14px; color: var(--secondary-text-color); margin-top: -4px; }
     
-    .attr-row { padding-left: 24px; border-left: 2px solid var(--primary-color); margin-top: 4px; }
-    .side-entity-box { border-bottom: 1px solid var(--divider-color); padding-bottom: 16px; margin-bottom: 16px; }
-    .side-entity-header { font-size: 0.8rem; font-weight: bold; color: var(--primary-color); text-transform: uppercase; margin-bottom: 8px; }
-    .side-tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+    .attr-row { padding-left: 24px; border-left: 3px solid var(--primary-color); margin-top: 4px; }
+    .side-entity-box { border-bottom: 2px solid var(--divider-color); padding-bottom: 20px; margin-bottom: 16px; }
+    .side-entity-header { font-size: 0.85rem; font-weight: bold; color: var(--primary-color); text-transform: uppercase; margin-bottom: 12px; letter-spacing: 1px; }
+    .side-tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
     
-    .rules-section { margin-top: 12px; background: var(--secondary-background-color); padding: 12px; border-radius: 8px; }
-    .rules-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: 500; color: var(--secondary-text-color); }
-    .rules-header ha-icon-button { color: var(--primary-color); }
+    /* COLOUR RULES */
+    .rules-section { 
+      margin-top: 16px; 
+      background: var(--card-background-color); 
+      padding: 12px; 
+      border-radius: 8px; 
+      border: 1px dashed var(--divider-color);
+    }
+    .rules-header { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      font-size: 0.85rem; 
+      font-weight: 600; 
+      color: var(--primary-text-color);
+      margin-bottom: 8px;
+    }
     
-    .rule-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 8px; align-items: center; }
-    .delete-btn { color: var(--error-color); }
+    /* BUTTON (+) */
+    .rules-header ha-icon-button { 
+      color: #4caf50; 
+      --mdc-icon-size: 28px;
+    }
+    .rules-header ha-icon-button:hover { background: rgba(76, 175, 80, 0.1); border-radius: 50%; }
+    
+    .rule-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-top: 10px; align-items: center; border-top: 1px solid var(--divider-color); padding-top: 10px; }
+    
+    /* BUTTON (X) RULES */
+    .delete-btn { color: var(--error-color, #f44336); }
+    .delete-btn:hover { background: rgba(244, 67, 54, 0.1); border-radius: 50%; }
+
+    /* Fix dla czytelności na ciemnych motywach */
+    ha-selector { --paper-item-icon-color: var(--primary-color); }
   `;
 }
 customElements.define('wattpilot-card-editor', WattpilotCardEditor);
