@@ -19,6 +19,7 @@ interface WattpilotConfig {
 
 @customElement('wattpilot-card')
 export class WattpilotCard extends LitElement {
+  static styles = cardStyles;
   
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private config!: WattpilotConfig;
