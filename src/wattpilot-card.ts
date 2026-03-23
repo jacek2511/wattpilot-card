@@ -127,10 +127,22 @@ export class WattpilotCard extends LitElement {
           <div class="settings-header">
             <span>CHARGE CURRENT</span>
             <div class="header-icons">
-              <ha-icon icon="mdi:information-outline"></ha-icon>
-              <ha-icon icon="mdi:wifi"></ha-icon>
-              <ha-icon icon="mdi:battery-charging"></ha-icon>
-              <ha-icon icon="mdi:cog"></ha-icon>
+              <ha-icon 
+                icon="mdi:information-outline" 
+                @click=${() => this._openDetails('entity_info_sensor')}>
+              </ha-icon>
+              <ha-icon 
+                icon="mdi:wifi" 
+                @click=${() => this._openDetails('entity_wifi_sensor')}>
+              </ha-icon>
+              <ha-icon 
+                icon="mdi:battery-charging" 
+                @click=${() => this._openDetails('entity_current')}>
+              </ha-icon>
+              <ha-icon 
+                icon="mdi:cog" 
+                @click=${() => this._openSettings()}>
+              </ha-icon>
             </div>
           </div>
 
@@ -142,7 +154,6 @@ export class WattpilotCard extends LitElement {
               <div class="chip ${phases === '3' ? 'active' : ''}" @click=${() => this._setPhases('3')}>3</div>
             </div>
           </div>
-
           <div class="slider-row">
             <span class="slider-label">Max Current</span> <input type="range" min="6" max="32" .value=${this._currentAmps.toString()} @input=${this._handleInput} @change=${this._handleChange}>
             <span class="amp-box">${this._currentAmps}A</span>
@@ -206,6 +217,21 @@ export class WattpilotCard extends LitElement {
     });
   }
 
+  private _openDetails(entityKey: string) {
+    const entityId = this.config[entityKey];
+    if (!entityId) return;
+
+    const event = new CustomEvent('hass-action', {
+      detail: {
+        config: { entity: entityId },
+        action: 'more-info',
+      },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(event);
+  }
+  
   // Obsługa suwaka prądu (Max Current)
   private _handleSliderInput(e: any) {
     this._isInteracting = true; // Flaga blokująca nadpisywanie wartości przez HA podczas przesuwania
