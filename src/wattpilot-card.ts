@@ -29,7 +29,7 @@ export class WattpilotCard extends LitElement {
   // Stany wewnętrzne (Lit automatycznie przerenderuje komponent po ich zmianie)
   @state() private _currentAmps: number = 6;
   @state() private _isCharging: boolean = false;
-  @state() private _activePanel: string = 'none'; // do obsługi pod-menu
+  @state() private _activePanel: string = ''; 
   
   private animIdx: number = 0;
   private _mainLoop: any = null;
@@ -325,295 +325,150 @@ export class WattpilotCard extends LitElement {
 
   // --- GŁÓWNY RENDERER ---  
 protected render(): TemplateResult {
-    if (!this.hass || !this.config) {
-      return html`
-        <ha-card>
-          <div class="card-header">
-            <span id="reason-badge" class="reason-badge">Fronius WattPilot</span>
-            <span id="status-badge" class="status-badge">--</span>
+  if (!this.hass || !this.config) return html``;
+
+  // Pobieranie podstawowych wartości z Home Assistant (zastąp nazwy zmiennych z configu swoimi)
+  const mode = this.hass.states[this.config.entity_mode]?.state || 'Default';
+  const soc = this.hass.states[this.config.entity_soc]?.state || '0';
+  const power = this.hass.states[this.config.entity_power]?.state || '0.0';
+  const stateVal = this.hass.states[this.config.entity_status]?.state || '--';
+  const reasonVal = this.hass.states[this.config.entity_reason]?.state || 'Fronius WattPilot';
+
+  return html`
+    <ha-card>
+      <div class="card-header">
+        <span class="reason-badge">${reasonVal}</span>
+        <span class="status-badge">${stateVal}</span>
+      </div>
+
+      <div class="mode-row">
+        <div class="mode-btn ${mode === 'Default' ? 'active' : ''}" @click=${() => this._setMode('Default')}>
+          <ha-icon icon="mdi:flash"></ha-icon><span>Standard</span>
+        </div>
+        <div class="mode-btn ${mode === 'Eco' ? 'active' : ''}" @click=${() => this._setMode('Eco')}>
+          <ha-icon icon="mdi:leaf"></ha-icon><span>Eco</span>
+        </div>
+        <div class="mode-btn ${mode === 'Next Trip' ? 'active' : ''}" @click=${() => this._setMode('Next Trip')}>
+          <ha-icon icon="mdi:map-marker-distance"></ha-icon><span>Next Trip</span>
+        </div>
+        <div class="action-stack">
+          <div class="action-btn force" @click=${() => this._callService('force_charge')}>FORCE</div>
+          <div class="action-btn start" @click=${() => this._callService('start_charge')}>START</div>
+          <div class="action-btn stop" @click=${() => this._callService('stop_charge')}>STOP</div>
+        </div>
+      </div>
+
+      <div class="card-content">
+        <div class="top-visuals">
+          <div class="side-column left">
+             ${this._renderSideColumn('left')}
+          </div>
+          
+          <div class="led-wrapper">
+            <div id="led-ring">
+              ${this._renderLedRing()}
+            </div>
+            <img src="${WATT_IMG}" class="device-img">
           </div>
 
-          <div class="mode-row">
-            <div class="mode-btn" data-val="Default"><ha-icon icon="mdi:flash"></ha-icon><span>Standard</span></div>
-            <div class="mode-btn" data-val="Eco"><ha-icon icon="mdi:leaf"></ha-icon><span>Eco</span></div>
-            <div class="mode-btn" data-val="Next Trip"><ha-icon icon="mdi:map-marker-distance"></ha-icon><span>Next Trip</span></div>
-            <div class="action-stack">
-              <div class="action-btn force" id="btn-force">FORCE</div>
-              <div class="action-btn start" id="btn-start">START</div>
-              <div class="action-btn stop" id="btn-stop">STOP</div>
+          <div class="side-column right">
+             ${this._renderSideColumn('right')}
+          </div>
+        </div>
+
+        <div class="ev-stats">
+          <div class="top-line">
+            <div class="soc-box">
+              <ha-icon icon="mdi:battery"></ha-icon>
+              <span>${soc} %</span>
+            </div>
+            <div class="range-box">
+              <ha-icon icon="mdi:road-variant"></ha-icon>
+              <span>${this.hass.states[this.config.entity_range]?.state || '--'} km</span>
+            </div>
+          </div>
+          <div class="progress-bar">
+            <div id="soc-bar" style="width: ${soc}%"></div>
+          </div>
+          
+          <div class="charging-time">
+            ${this.hass.states[this.config.entity_charge_end]?.state || ''}
+          </div>
+
+          <div class="power-box">
+            <span id="power">${power} kW</span>
+            <span id="power-details">
+              <span id="amp-val">${this.hass.states[this.config.entity_current]?.state || '0'} A</span> 
+              <span id="session-energy" style="margin-left: 10px;">${this.hass.states[this.config.entity_energy]?.state || '0'} kWh</span>
+              <span id="phase-info" style="margin-left: 10px;">${this.hass.states[this.config.entity_phases]?.state || '--'}</span>
+            </span>
+          </div>
+
+          <div id="settings-panel" class="sub-panel ${this._activePanel === 'settings' ? '' : 'hidden'}">
+            <div class="section-title">SYSTEM SETTINGS</div>
+            <div class="control-row">
+              <span>Lock Level</span>
+              <select class="native-select" .value=${this.hass.states[this.config.entity_lock]?.state} @change=${(e: any) => this._updateSelect(this.config.entity_lock, e.target.value)}>
+                <option value="unlocked">Unlocked</option>
+                <option value="locked">Locked</option>
+              </select>
+            </div>
+            <div class="divider"></div>
+            <button @click=${() => this._callService('restart')} style="width:100%; padding:8px; border-radius:4px; border:1px solid #ef4444; background:transparent; color:#ef4444; cursor:pointer; font-weight:bold; margin-top:5px;">RESTART WATTPILOT</button>
+          </div>
+
+          <div id="wifi-panel" class="sub-panel ${this._activePanel === 'wifi' ? '' : 'hidden'}">
+            <div class="section-title">WIFI CONFIGURATION</div>
+            <div class="control-row"><span class="control-label">Status</span><span class="val-txt">${this.hass.states[this.config.entity_wifi_status]?.state || '--'}</span></div>
+          </div>
+
+          <div id="info-panel" class="sub-panel ${this._activePanel === 'info' ? '' : 'hidden'}">
+            <div class="section-title">CHARGER INFO</div>
+            <div class="control-row">
+              <span class="control-label">Total Charged</span>
+              <span class="val-txt">${this.hass.states[this.config.entity_total_energy]?.state || '--'} kWh</span>
             </div>
           </div>
 
-          <div class="card-content">
-            <div class="top-visuals">
-              <div class="side-column left" id="left-col"></div>
-              
-              <div class="led-wrapper">
-                <div id="led-ring"></div>
-                <img src="${WATT_IMG}" class="device-img">
-              </div>
-
-              <div class="side-column right" id="right-col"></div>
-            </div>
-
-            <div class="ev-stats">
-              <div class="top-line">
-                <div class="soc-box">
-                  <ha-icon id="soc-icon" icon="mdi:battery"></ha-icon>
-                  <span id="soc-text">--/-- %</span>
-                </div>
-                <div class="range-box">
-                  <ha-icon icon="mdi:road-variant"></ha-icon>
-                  <span id="range-text">--/-- km</span>
-                </div>
-              </div>
-              <div class="progress-bar"><div id="soc-bar"></div></div>
-              
-              <div class="charging-time" id="charge-end-text"></div>
-
-              <div class="power-box">
-                <span id="power">0.0 kW</span>
-                <span id="power-details">
-                  <span id="amp-val">0 A</span> 
-                  <span id="session-energy" style="margin-left: 10px;">0 kWh</span>
-                  <span id="phase-info" style="margin-left: 10px;">--</span>
-                </span>
-              </div>
-
-              <div id="settings-panel" class="sub-panel hidden">
-                <div class="section-title">SYSTEM SETTINGS</div>
-                
-                <div class="control-row">
-                  <span class="control-label">Lock Level</span>
-                  <select id="lock-sel" class="native-select" data-entity="entity_lock"></select>
-                </div>
-                <div class="control-row">
-                  <span class="control-label">Cable Unlock</span>
-                  <select id="cable-sel" class="native-select" data-entity="entity_cable_unlock"></select>
-                </div>
-
-                <div class="divider"></div>
-
-                <div class="control-row">
-                  <span class="control-label">Min Charge Time</span>
-                  <div class="right-controls">
-                    <input type="range" id="min-time" min="1" max="120" data-entity="entity_min_time" data-istime="true">
-                    <span class="val-txt" id="min-time-txt">--m</span>
-                  </div>
-                </div>
-                <div class="control-row">
-                  <span class="control-label">Phase Switch Delay</span>
-                  <div class="right-controls">
-                    <input type="range" id="phase-delay" min="1" max="120" data-entity="entity_phase_delay" data-istime="true">
-                    <span class="val-txt" id="phase-delay-txt">--m</span>
-                  </div>
-                </div>
-                <div class="control-row">
-                  <span class="control-label">Phase Switch Interval</span>
-                  <div class="right-controls">
-                    <input type="range" id="phase-interval" min="1" max="120" data-entity="entity_phase_interval" data-istime="true">
-                    <span class="val-txt" id="phase-interval-txt">--m</span>
-                  </div>
-                </div>
-                
-                <div class="divider"></div>
-
-                <div class="control-row">
-                  <span class="control-label">PV Battery Threshold</span>
-                  <div class="right-controls">
-                    <input type="range" id="pv-threshold" min="0" max="100" data-entity="entity_pv_threshold">
-                    <span class="val-txt" id="pv-threshold-txt">--%</span>
-                  </div>
-                </div>
-                <div class="control-row">
-                  <span class="control-label">Boost Discharge Until</span>
-                  <div class="right-controls">
-                    <input type="range" id="boost-limit" min="0" max="100" data-entity="entity_boost_limit">
-                    <span class="val-txt" id="boost-limit-txt">--%</span>
-                  </div>
-                </div>
-
-                <div class="divider"></div>
-
-                <div class="control-row">
-                  <span class="control-label">3-Phase Power Level</span>
-                  <div class="right-controls">
-                    <input type="range" id="phase-power-lvl" min="0.1" max="32.0" step="0.1" data-entity="entity_phase_power" data-ispower="true" step="0.1">
-                    <span class="val-txt" id="phase-power-lvl-txt">--kW</span>
-                  </div>
-                </div>
-
-                <div class="divider"></div>
-
-                <div class="control-row"><span>Pause Charging</span><ha-switch id="pause-sw" data-entity="entity_charge_pause"></ha-switch></div>
-                <div class="control-row"><span>Simulate Unplugging</span><ha-switch id="sim-unplug-sw" data-entity="entity_sim_unplug"></ha-switch></div>
-                <div class="control-row"><span>Unlock on Power Outage</span><ha-switch id="power-outage-sw" data-entity="entity_power_outage"></ha-switch></div>
-                <div class="control-row"><span>Ground Check</span><ha-switch id="ground-check-sw" data-entity="entity_ground_check"></ha-switch></div>
-                <div class="control-row"><span>LED Energy Saving</span><ha-switch id="led-save-sw" data-entity="entity_led_save"></ha-switch></div>
-
-                <div class="divider"></div>
-                <button id="btn-restart" style="width:100%; padding:8px; border-radius:4px; border:1px solid #ef4444; background:transparent; color:#ef4444; cursor:pointer; font-weight:bold; margin-top:5px;">RESTART WATTPILOT</button>
-              </div>
-
-              <div id="wifi-panel" class="sub-panel hidden">
-                <div class="section-title">WIFI CONFIGURATION</div>
-                <div class="control-row"><span class="control-label">Status</span><span id="wifi-state-txt" class="val-txt">--</span></div>
-                <div class="control-row"><span class="control-label">Network</span><span id="wifi-conn-txt" class="val-txt">--</span></div>
-                <div class="control-row"><span class="control-label">Signal Strength</span><span id="wifi-signal-txt" class="val-txt">--</span></div>
-                <div class="divider" style="margin: 8px 0; opacity: 0.1;"></div>
-                <div class="control-row">
-                  <span class="control-label">Auto Disable Hotspot</span>
-                  <ha-switch id="hotspot-sw" data-entity="entity_hotspot_sw"></ha-switch>
-                </div>
-              </div>
-
-              <div id="info-panel" class="sub-panel hidden">
-                <div class="section-title">CHARGER INFO</div>
-                <div class="control-row">
-                  <span class="control-label">Total Charged</span>
-                  <span id="total-charged-txt" class="val-txt">-- kWh</span>
-                </div>
-                <div class="divider" style="margin: 8px 0; opacity: 0.1;"></div>
-                <style>
-                  .phase-line { font-size: 11px; margin-bottom: 4px; font-family: monospace; white-space: nowrap; }
-                  .phase-label { font-weight: bold; color: var(--primary-color); display: inline-block; width: 25px; }
-                </style>
-                <div id="l1-line" class="phase-line"></div>
-                <div id="l2-line" class="phase-line"></div>
-                <div id="l3-line" class="phase-line"></div>
-                <div id="n-line" class="phase-line"></div>
-                <div class="divider" style="margin: 8px 0; opacity: 0.1;"></div>
-                <div class="info-item" style="display: flex; justify-content: space-between; align-items: center;">
-                  <span class="info-label" style="flex-grow: 1;">Internal Error</span>
-                  <span id="internal-error-txt" class="val-txt" data-entity="entity_internal_error" style="text-align: right;">None</span>
-                </div>
-                <div class="info-item" style="flex-direction: column; align-items: stretch; margin-top: 8px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span class="info-label">Firmware Update</span>
-                    <span id="firmware-update-txt" class="val-txt" data-entity="entity_firmware_update">--</span>
-                  </div>
-                  
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
-                    <span style="font-size: 10px; color: var(--secondary-text-color);">Firmware Version (installed/latest)</span>
-                    <span id="firmware-version-txt" style="font-size: 10px; color: var(--secondary-text-color);">-- / --</span>
-                  </div>
-
-                  <div id="update-progress-container" style="display: none; width: 100%; background: #444; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 6px;">
-                    <div id="update-progress-bar" style="width: 0%; height: 100%; background: #4caf50; transition: width 0.3s;"></div>
-                  </div>
-
-                  <ha-button id="btn-install-update" raised 
-                             style="display: none; width: 100%; margin-top: 8px; --mdc-theme-primary: #4caf50; height: 32px; font-size: 12px;">
-                    Update Now
-                  </ha-button>
-                </div>
-              </div>
-
-              <div id="charge-settings-panel" class="sub-panel hidden">
-                <div class="section-title">BATTERY & LIMITS</div>
-                <div class="control-row">
-                  <span class="control-label">Target SoC</span>
-                  <div class="right-controls">
-                    <input type="range" id="target-soc" min="0" max="100" data-entity="entity_target_soc">
-                    <span class="val-txt" id="target-soc-txt">--%</span>
-                  </div>
-                </div>
-                <div class="control-row">
-                  <span class="control-label">Min SoC</span>
-                  <div class="right-controls">
-                    <input type="range" id="min-soc" min="0" max="100" data-entity="entity_min_soc">
-                    <span class="val-txt" id="min-soc-txt">--%</span>
-                  </div>
-                </div>
-                
-                <div class="divider"></div>
-                
-                <div class="control-row"><span>Enable Boost</span><ha-switch id="boost-sw" data-entity="entity_boost"></ha-switch></div>
-                <div class="control-row">
-                  <span class="control-label">Boost Type</span>
-                  <select id="boost-type-sel" class="native-select" data-entity="entity_boost_type"></select>
-                </div>
-
-                <div class="divider"></div>
-
-                <div class="control-row"><span>PV Surplus Only</span><ha-switch id="pv-surplus-sw" data-entity="entity_pv_surplus"></ha-switch></div>
-                <div class="control-row">
-                  <span class="control-label">Start Charging At</span>
-                  <div class="input-with-unit-wrapper">
-                    <input type="number" id="start-at" class="num-input" data-entity="entity_start_at" data-ispower="true" step="0.1">
-                    <span class="inner-unit">kW</span>
-                  </div>
-                </div>
-                <div class="control-row"><span>Use aWATTar</span><ha-switch id="awattar-sw" data-entity="entity_awattar"></ha-switch></div>
-                <div class="control-row">
-                  <span class="control-label">Max Price</span>
-                  <div class="right-controls">
-                    <div class="input-with-unit-wrapper" style="flex: 0 0 100px;">
-                      <input type="number" id="max-price-input" class="num-input" 
-                             step="0.01" min="0" data-entity="entity_max_price" data-isprice="true">
-                      <span class="inner-unit">€</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="divider"></div>
-
-                <div class="control-row">
-                  <span class="control-label">Next Trip Power</span>
-                  <div class="input-with-unit-wrapper">
-                    <input type="number" id="next-trip-pwr" class="num-input" data-entity="entity_next_trip_pwr" data-ispower="true" step="0.1">
-                    <span class="inner-unit">kW</span>
-                  </div>
-                </div>
-                <div class="control-row">
-                  <span class="control-label">Next Trip Time</span>
-                  <div class="right-controls">
-                    <div class="input-with-unit-wrapper" style="flex: 0 0 100px;">
-                      <input type="time" id="next-trip-time" class="num-input" 
-                             data-entity="entity_next_trip_timing">
-                    </div>
-                  </div>
-                </div>
-                <div class="control-row"><span>Remain in Eco Mode</span><ha-switch id="eco-persist-sw" data-entity="entity_eco_persist"></ha-switch></div>
-              </div>
-
-              <div class="divider"></div>
-              
-              <div class="section-header">
-                <div class="section-title" style="margin:0;">CHARGE CURRENT</div>
-                <div class="header-actions">
-                  <ha-icon icon="mdi:information-outline" class="sub-menu-trigger" data-target="info-panel" title="Info"></ha-icon>
-                  <ha-icon icon="mdi:wifi-cog" class="sub-menu-trigger" data-target="wifi-panel" title="WiFi Settings"></ha-icon>
-                  <ha-icon icon="mdi:battery-charging-60" class="sub-menu-trigger" data-target="charge-settings-panel" title="Charge Settings"></ha-icon>
-                  <ha-icon icon="mdi:cog" class="sub-menu-trigger" data-target="settings-panel" title="Settings"></ha-icon>
- 
-                </div>
-              </div>
-
-              <div class="control-row">
-                <span class="control-label">Phases</span>
-                <div class="right-controls">
-                  <div class="phase-btns" id="phase-ctrl">
-                    <div class="phase-btn" data-val="Auto">Auto</div>
-                    <div class="phase-btn" data-val="1 Phase">1</div>
-                    <div class="phase-btn" data-val="3 Phases">3</div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="control-row" style="margin-top: 10px;">
-                <span class="control-label">Max Current</span>
-                <div class="right-controls">
-                  <input type="range" id="slider-current" min="6" max="32">
-                  <span style="width: 40px; text-align: right; font-weight:bold;" id="curr-val-txt">-- A</span>
-                </div>
+          <div id="charge-settings-panel" class="sub-panel ${this._activePanel === 'charge-settings' ? '' : 'hidden'}">
+            <div class="section-title">BATTERY & LIMITS</div>
+            <div class="control-row">
+              <span class="control-label">Target SoC</span>
+              <div class="right-controls">
+                <input type="range" min="0" max="100" 
+                       .value=${this.hass.states[this.config.entity_target_soc]?.state || '100'}
+                       @change=${(e: any) => this._updateNumber(this.config.entity_target_soc, e.target.value)}>
+                <span class="val-txt">${this.hass.states[this.config.entity_target_soc]?.state || '--'}%</span>
               </div>
             </div>
           </div>
-        </ha-card>
-      `;
-    }
 
+          <div class="divider"></div>
+          
+          <div class="section-header">
+            <div class="section-title" style="margin:0;">CHARGE CURRENT</div>
+            <div class="header-actions">
+              <ha-icon icon="mdi:information-outline" class="sub-menu-trigger ${this._activePanel === 'info' ? 'active' : ''}" @click=${() => this._togglePanel('info')}></ha-icon>
+              <ha-icon icon="mdi:wifi-cog" class="sub-menu-trigger ${this._activePanel === 'wifi' ? 'active' : ''}" @click=${() => this._togglePanel('wifi')}></ha-icon>
+              <ha-icon icon="mdi:battery-charging-60" class="sub-menu-trigger ${this._activePanel === 'charge-settings' ? 'active' : ''}" @click=${() => this._togglePanel('charge-settings')}></ha-icon>
+              <ha-icon icon="mdi:cog" class="sub-menu-trigger ${this._activePanel === 'settings' ? 'active' : ''}" @click=${() => this._togglePanel('settings')}></ha-icon>
+            </div>
+          </div>
+
+          <div class="control-row" style="margin-top: 10px;">
+            <span class="control-label">Max Current</span>
+            <div class="right-controls">
+              <input type="range" min="6" max="32" 
+                     .value=${this.hass.states[this.config.entity_max_current]?.state || '16'}
+                     @change=${(e: any) => this._updateNumber(this.config.entity_max_current, e.target.value)}>
+              <span style="width: 40px; text-align: right; font-weight:bold;">${this.hass.states[this.config.entity_max_current]?.state || '--'} A</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ha-card>
+    `;
+    
     const powerId = this._getEntityId('entity_power');
     const pEnt = powerId ? this.hass.states[powerId] : undefined;
     const powerVal = pEnt && !isNaN(parseFloat(pEnt.state)) ? `${parseFloat(pEnt.state).toFixed(1)} kW` : '-- kW';
@@ -704,6 +559,56 @@ protected render(): TemplateResult {
     `
   ];
 
+  // 1. Przełączanie paneli (Settings / Wifi itp.)
+  private _togglePanel(panelName: string) {
+    // Jeśli kliknięty panel jest już otwarty, zamknij go. W przeciwnym razie otwórz.
+    this._activePanel = this._activePanel === panelName ? '' : panelName;
+  }
+  
+  // 2. Obsługa zmiany trybów pracy (Eco, Default itp.)
+  private _setMode(mode: string) {
+    if (!this.config.entity_mode) return;
+    this.hass.callService('select', 'select_option', {
+      entity_id: this.config.entity_mode,
+      option: mode
+    });
+  }
+  
+  // 3. Proste wywołania akcji (Start, Stop, Restart)
+  private _callService(action: string) {
+    // Dostosuj domeny i serwisy do swojej integracji Fronius
+    let domain = 'button';
+    let service = 'press';
+    let entity = '';
+  
+    if (action === 'start_charge') entity = this.config.entity_start;
+    if (action === 'stop_charge') entity = this.config.entity_stop;
+    if (action === 'force_charge') entity = this.config.entity_force;
+    if (action === 'restart') entity = this.config.entity_restart;
+  
+    if (entity) {
+      this.hass.callService(domain, service, { entity_id: entity });
+    }
+  }
+  
+  // 4. Obsługa suwaków (sliderów)
+  private _updateNumber(entityId: string, value: string) {
+    if (!entityId) return;
+    this.hass.callService('number', 'set_value', {
+      entity_id: entityId,
+      value: Number(value)
+    });
+  }
+  
+  // 5. Obsługa list rozwijanych (select)
+  private _updateSelect(entityId: string, value: string) {
+    if (!entityId) return;
+    this.hass.callService('select', 'select_option', {
+      entity_id: entityId,
+      option: value
+    });
+  }
+  
   getCardSize() {
     return 3;
   }
