@@ -175,6 +175,67 @@ export class WattpilotCard extends LitElement {
     setTimeout(() => { this._isInteracting = false; }, 2000);
   }
 
+// Obsługa zmiany trybu pracy (Standard, Eco, Next Trip)
+  private _setMode(mode: string) {
+    const entityId = this.config.entity_mode;
+    if (!entityId) return;
+    this.hass.callService('select', 'select_option', {
+      entity_id: entityId,
+      option: mode
+    });
+  }
+
+  // Obsługa przycisków akcji (FORCE, START, STOP)
+  private _callAction(actionKey: 'entity_force' | 'entity_start' | 'entity_stop') {
+    const entityId = this.config[actionKey];
+    if (!entityId) return;
+    
+    // Zakładamy, że to są encje typu button. Jeśli to switch, zmień na 'switch', 'toggle'
+    this.hass.callService('button', 'press', {
+      entity_id: entityId
+    });
+  }
+
+  // Obsługa wyboru faz (Auto, 1, 3)
+  private _setPhases(phases: string) {
+    const entityId = this.config.entity_phases;
+    if (!entityId) return;
+    this.hass.callService('select', 'select_option', {
+      entity_id: entityId,
+      option: phases
+    });
+  }
+
+  // Obsługa suwaka prądu (Max Current)
+  private _handleSliderInput(e: any) {
+    this._isInteracting = true; // Flaga blokująca nadpisywanie wartości przez HA podczas przesuwania
+    this._currentAmps = parseInt(e.target.value);
+  }
+
+  private _handleSliderChange(e: any) {
+    const entityId = this.config.entity_current;
+    if (!entityId) return;
+    
+    this.hass.callService('number', 'set_value', {
+      entity_id: entityId,
+      value: e.target.value
+    });
+
+    // Po 2 sekundach od puszczenia suwaka pozwalamy karcie znów czytać stan z HA
+    setTimeout(() => {
+      this._isInteracting = false;
+    }, 2000);
+  }
+
+  protected updated(changedProperties: PropertyValues) {
+    if (changedProperties.has('hass') && !this._isInteracting) {
+      const stateObj = this._getEntity('entity_current');
+      if (stateObj) {
+        this._currentAmps = parseInt(stateObj.state);
+      }
+    }
+  }
+  
   static styles = css`
     ha-card { padding: 4px 12px 12px 12px; background: #1c1c1c; color: white; overflow: hidden; }
     .card-header { display: flex; justify-content: space-between; margin-top: -12px; margin-bottom: -2px; height: 32px; align-items: center;  }
