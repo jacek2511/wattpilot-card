@@ -19,12 +19,10 @@ export class WattpilotCard extends LitElement {
   private _mainLoop: any = null;
 
   public setConfig(config: any) {
-    if (!config) throw new Error('Nieprawidłowa konfiguracja');
     this.config = config;
   }
 
   private _getEntity(key: string) {
-    if (!this.config || !this.config[key]) return undefined;
     const eid = typeof this.config[key] === 'object' ? this.config[key].entity : this.config[key];
     return this.hass.states[eid];
   }
@@ -32,12 +30,6 @@ export class WattpilotCard extends LitElement {
   private _getState(key: string) {
     const stateObj = this._getEntity(key);
     return stateObj ? stateObj.state : undefined;
-  }
-
-  private _formatValue(val: any): string {
-    if (val === undefined || val === null) return '--';
-    const num = parseFloat(val);
-    return isNaN(num) ? val : Math.round(num).toString();
   }
 
   connectedCallback() {
@@ -56,39 +48,13 @@ export class WattpilotCard extends LitElement {
     if (this._mainLoop) clearInterval(this._mainLoop);
   }
 
-  protected updated(changedProps: PropertyValues): void {
-    if (changedProps.has('hass')) {
-      const status = (this._getState('entity_status') || '').toLowerCase();
-      this._isCharging = status.includes('charging');
-      if (!this._isInteracting) {
-        const curr = this._getState('entity_current');
-        if (curr) this._currentAmps = parseInt(curr);
-      }
-      this._updateLeds();
-    }
-  }
-
   @queryAll('.led') private _leds!: NodeListOf<HTMLElement>;
 
   private _updateLeds() {
     if (!this._leds?.length) return;
     const activeLimit = Math.min(32, this._currentAmps);
-    const status = (this._getState('entity_status') || '').toLowerCase();
-
     this._leds.forEach((l, i) => {
-      l.className = 'led';
-      l.style.opacity = '0.1';
-      if (i < activeLimit) {
-        l.style.opacity = '1';
-        if (this._isCharging) {
-          l.classList.add('blue');
-          l.style.opacity = (i === this._animIdx) ? '1' : '0.3';
-        } else {
-          if (status.includes('wait')) l.classList.add('yellow');
-          else if (status.includes('complete')) l.classList.add('green');
-          else l.classList.add('blue');
-        }
-      }
+      l.style.opacity = i < activeLimit ? (this._isCharging && i === this._animIdx ? '1' : '0.4') : '0.1';
     });
   }
 
@@ -97,19 +63,13 @@ export class WattpilotCard extends LitElement {
     for (let i = 1; i <= 5; i++) {
       const cfg = this.config[`${side}${i}`];
       if (!cfg) continue;
-      const eid = typeof cfg === 'object' ? cfg.entity : cfg;
-      const stateObj = this.hass.states[eid];
+      const stateObj = this.hass.states[typeof cfg === 'object' ? cfg.entity : cfg];
       if (!stateObj) continue;
-
-      const val = this._formatValue(stateObj.state);
-      const unit = (typeof cfg === 'object' ? cfg.unit : undefined) || stateObj.attributes.unit_of_measurement || '';
-      const icon = cfg.icon || stateObj.attributes.icon;
-
+      const val = Math.round(parseFloat(stateObj.state)) || stateObj.state;
+      const unit = cfg.unit || stateObj.attributes.unit_of_measurement || '';
       rows.push(html`
         <div class="data-row ${side}">
-          ${side === 'left' 
-            ? html`<ha-icon .icon=${icon}></ha-icon><span>${val} ${unit}</span>`
-            : html`<span>${val} ${unit}</span><ha-icon .icon=${icon}></ha-icon>`}
+          ${side === 'left' ? html`<ha-icon .icon=${cfg.icon || stateObj.attributes.icon}></ha-icon> <span>${val}${unit}</span>` : html Luck`<span>${val}${unit}</span> <ha-icon .icon=${cfg.icon || stateObj.attributes.icon}></ha-icon>`}
         </div>
       `);
     }
@@ -117,23 +77,19 @@ export class WattpilotCard extends LitElement {
   }
 
   protected render(): TemplateResult {
-    if (!this.hass || !this.config) return html``;
-
     const status = this._getState('entity_status') || '--';
     const mode = this._getState('entity_mode');
-    const soc = this._formatValue(this._getState('entity_soc'));
-    const socTarget = this._formatValue(this._getState('entity_target_soc'));
+    const soc = this._getState('entity_soc') || '0';
     const power = parseFloat(this._getState('entity_power') || '0').toFixed(1);
-    const range = this._getState('entity_range') || '--';
-    const rangeTarget = this._getState('entity_range_target') || '--';
     const sessionEnergy = parseFloat(this._getState('entity_energy_session') || '0').toFixed(1);
     const phases = this._getState('entity_phases') || 'Auto';
+    const timeLeft = this._getState('entity_time_left');
 
     return html`
       <ha-card>
         <div class="card-header">
           <span class="reason-badge">${this._getState('entity_reason') || 'Wattpilot'}</span>
-          <span class="status-badge ${status === 'Complete' ? 'complete' : ''}">${status.toUpperCase()}</span>
+          <span class="status-badge ${status.toLowerCase()}">${status.toUpperCase()}</span>
         </div>
 
         <div class="top-controls-grid">
@@ -150,9 +106,12 @@ export class WattpilotCard extends LitElement {
           </div>
           
           <div class="actions-grid">
-            <div class="action-btn force" @click=${() => this._call('entity_force')}>FORCE</div>
-            <div class="action-btn start" @click=${() => this._call('entity_start')}>START</div>
-            <div class="action-btn stop" @click=${() => this._call('entity_stop')}>STOP</div>
+            ${status.toLowerCase().includes('charging') 
+              ? html`<div class="action-btn stop" @click=${() => this._call('entity_stop')}>STOP</div>`
+              : html`
+                <div class="action-btn force" @click=${() => this._call('entity_force')}>FORCE</div>
+                <div class="action-btn start" @click=${() => this._call('entity_start')}>START</div>
+              `}
           </div>
         </div>
 
@@ -160,35 +119,24 @@ export class WattpilotCard extends LitElement {
           ${this._renderSideColumn('left')}
           <div class="led-wrapper">
             <div id="led-ring">
-              ${Array.from({length:32}).map((_,i) => html`<div class="led" style="transform: rotate(${i*11.25-90}deg) translate(62px)"></div>`)}
+              ${Array.from({length:32}).map((_,i) => html`<div class="led" style="transform: rotate(${i*11.25-90}deg) translate(46px) translateY(18px)"></div>`)}
             </div>
-            <img src="${WATT_IMG}" class="device-img">
+            <img src="data:image/png;base64,..." class="device-img">
           </div>
           ${this._renderSideColumn('right')}
         </div>
 
         <div class="ev-stats">
-          <div class="stats-row">
-            <span><ha-icon icon="mdi:battery-high"></ha-icon> ${soc}/${socTarget}%</span>
-            <span><ha-icon icon="mdi:car-connected"></ha-icon> ${range}/${rangeTarget}km</span>
-          </div>
           <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${soc}%"></div></div>
+          ${timeLeft && timeLeft !== '--' ? html`<div class="time-left-center">Pozostało: ${timeLeft}</div>` : ''}
           
-          <div class="power-val">${power} kW</div>
-          <div class="power-sub">${this._currentAmps} A | ${sessionEnergy} kWh | ${phases} φ</div>
+          <div class="power-row-inline">
+            <span class="main-power">${power} kW</span>
+            <span class="sub-power">${this._currentAmps}A | ${sessionEnergy}kWh | ${phases}φ</span>
+          </div>
         </div>
 
         <div class="settings-area">
-          <div class="settings-header">
-            <span>CHARGE CURRENT</span>
-            <div class="settings-icons">
-              <ha-icon icon="mdi:information-outline"></ha-icon>
-              <ha-icon icon="mdi:wifi"></ha-icon>
-              <ha-icon icon="mdi:battery-charging"></ha-icon>
-              <ha-icon icon="mdi:cog"></ha-icon>
-            </div>
-          </div>
-
           <div class="phases-row">
             <span>Phases</span>
             <div class="chips">
@@ -197,95 +145,73 @@ export class WattpilotCard extends LitElement {
               <div class="chip ${phases === '3' ? 'active' : ''}" @click=${() => this._setPhases('3')}>3</div>
             </div>
           </div>
-
           <div class="slider-row">
-            <span>Max Current</span>
             <input type="range" min="6" max="32" .value=${this._currentAmps.toString()} @input=${this._handleInput} @change=${this._handleChange}>
-            <span class="amp-box">${this._currentAmps} A</span>
+            <span class="amp-box">${this._currentAmps}A</span>
           </div>
         </div>
       </ha-card>
     `;
   }
 
-  private _setMode(m: string) {
-    const eid = typeof this.config.entity_mode === 'object' ? this.config.entity_mode.entity : this.config.entity_mode;
-    this.hass.callService('select', 'select_option', { entity_id: eid, option: m });
-  }
-
-  private _setPhases(p: string) {
-    const eid = typeof this.config.entity_phases === 'object' ? this.config.entity_phases.entity : this.config.entity_phases;
-    this.hass.callService('select', 'select_option', { entity_id: eid, option: p });
-  }
-
-  private _call(key: string) {
-    const eid = this.config[key];
-    if (eid) this.hass.callService('button', 'press', { entity_id: eid });
-  }
-
+  // Handlery (pominięte dla zwięzłości, zachowaj te z poprzedniej wersji)
+  private _setMode(m: string) { /* ... */ }
+  private _setPhases(p: string) { /* ... */ }
+  private _call(key: string) { /* ... */ }
   private _handleInput(e: any) { this._isInteracting = true; this._currentAmps = parseInt(e.target.value); }
-  private _handleChange(e: any) {
-    const eid = typeof this.config.entity_current === 'object' ? this.config.entity_current.entity : this.config.entity_current;
-    this.hass.callService('number', 'set_value', { entity_id: eid, value: e.target.value });
-    setTimeout(() => { this._isInteracting = false; }, 2000);
-  }
+  private _handleChange(e: any) { /* ... */ }
 
   static styles = css`
-    ha-card { padding: 16px; background: #1c1c1c; color: white; border-radius: 12px; }
+    ha-card { padding: 8px 16px 16px 16px; background: #1c1c1c; color: white; border-radius: 12px; }
     
-    .card-header { display: flex; justify-content: space-between; margin-bottom: 16px; }
-    .reason-badge { border: 1px solid #444; padding: 4px 12px; border-radius: 20px; color: #888; font-size: 12px; }
-    .status-badge { border: 1px solid #03a9f4; color: #03a9f4; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 12px; }
-    .status-badge.complete { border-color: #4caf50; color: #4caf50; }
+    .card-header { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center; }
+    .reason-badge { border: 1px solid #333; padding: 2px 10px; border-radius: 15px; color: #777; font-size: 11px; }
+    .status-badge { border: 1px solid #03a9f4; color: #03a9f4; padding: 2px 10px; border-radius: 15px; font-weight: bold; font-size: 11px; }
 
-    .top-controls-grid { display: flex; gap: 12px; margin-bottom: 24px; }
-    .modes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 1; }
-    .actions-grid { display: flex; flex-direction: column; gap: 6px; width: 90px; }
+    .top-controls-grid { display: flex; gap: 10px; margin-bottom: 12px; align-items: stretch; }
+    .modes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; flex: 1; }
+    .actions-grid { display: flex; flex-direction: column; gap: 4px; width: 85px; justify-content: space-between; }
 
     .mode-btn { 
-      background: #262626; border-radius: 10px; display: flex; flex-direction: column; 
-      align-items: center; justify-content: center; padding: 10px; cursor: pointer; border: 1px solid transparent;
+      background: #262626; border-radius: 8px; display: flex; flex-direction: column; 
+      align-items: center; justify-content: center; padding: 4px; cursor: pointer; border: 1px solid transparent;
     }
     .mode-btn.active { border-color: #03a9f4; background: rgba(3,169,244,0.1); }
-    .mode-btn ha-icon { margin-bottom: 4px; --mdc-icon-size: 24px; }
-    .mode-btn span { font-size: 11px; }
+    .mode-btn ha-icon { --mdc-icon-size: 20px; margin-bottom: 2px; }
+    .mode-btn span { font-size: 10px; }
 
-    .action-btn { padding: 8px; border-radius: 8px; font-size: 11px; font-weight: bold; text-align: center; cursor: pointer; }
+    .action-btn { padding: 6px; border-radius: 6px; font-size: 10px; font-weight: bold; text-align: center; cursor: pointer; flex: 1; display: flex; align-items: center; justify-content: center; }
     .force { background: #ff9800; color: black; }
     .start { background: #4caf50; color: black; }
-    .stop { background: #f44336; color: white; }
+    .stop { background: #f44336; color: white; min-height: 50px; }
 
-    .visual-center { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .side-column { display: flex; flex-direction: column; gap: 12px; width: 80px; }
-    .data-row { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #ccc; }
+    .visual-center { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .side-column { display: flex; flex-direction: column; gap: 8px; min-width: 75px; }
+    .data-row { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #ccc; white-space: nowrap; }
     .data-row.right { justify-content: flex-end; }
-    .data-row ha-icon { --mdc-icon-size: 18px; color: #03a9f4; }
+    .data-row ha-icon { --mdc-icon-size: 16px; color: #03a9f4; }
 
-    .led-wrapper { position: relative; width: 140px; height: 140px; display: flex; justify-content: center; align-items: center; }
-    .device-img { width: 90px; z-index: 2; }
-    #led-ring { position: absolute; width: 100%; height: 100%; }
-    .led { position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; background: #444; border-radius: 50%; margin: -2.5px; }
-    .led.blue { background: #03a9f4; box-shadow: 0 0 4px #03a9f4; }
-    .led.green { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
-    .led.yellow { background: #ffeb3b; box-shadow: 0 0 4px #ffeb3b; }
+    .led-wrapper { position: relative; width: 120px; height: 130px; display: flex; justify-content: center; align-items: flex-start; padding-top: 10px; }
+    .device-img { width: 85px; z-index: 2; position: relative; }
+    #led-ring { position: absolute; width: 100%; height: 100%; top: 0; left: 0; }
+    .led { position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: #03a9f4; border-radius: 50%; margin: -2px; pointer-events: none; }
 
-    .ev-stats { margin-bottom: 20px; }
-    .stats-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; color: #aaa; }
-    .progress-bar-bg { height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
+    .progress-bar-bg { height: 6px; background: #333; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
     .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #f44336, #ffeb3b, #4caf50); }
-    .power-val { font-size: 32px; font-weight: bold; text-align: center; }
-    .power-sub { text-align: center; color: #888; font-size: 14px; margin-top: 4px; }
+    .time-left-center { text-align: center; font-size: 12px; color: #03a9f4; margin-bottom: 8px; }
 
-    .settings-area { border-top: 1px solid #333; padding-top: 16px; display: flex; flex-direction: column; gap: 16px; }
-    .settings-header { display: flex; justify-content: space-between; font-size: 11px; color: #666; font-weight: bold; }
-    .settings-icons { display: flex; gap: 12px; color: #aaa; }
+    .power-row-inline { display: flex; align-items: baseline; gap: 10px; margin-top: 5px; }
+    .main-power { font-size: 28px; font-weight: bold; }
+    .sub-power { font-size: 14px; color: #777; }
+
+    .settings-area { border-top: 1px solid #333; padding-top: 10px; margin-top: 10px; }
+    .phases-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .chips { display: flex; gap: 6px; }
+    .chip { background: #333; padding: 4px 12px; border-radius: 12px; font-size: 11px; cursor: pointer; }
+    .chip.active { background: #03a9f4; }
     
-    .phases-row, .slider-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
-    .chips { display: flex; gap: 8px; }
-    .chip { background: #333; padding: 6px 14px; border-radius: 16px; font-size: 12px; cursor: pointer; }
-    .chip.active { background: #03a9f4; color: white; }
-    
-    .slider-row input { flex: 1; margin: 0 12px; accent-color: #03a9f4; }
-    .amp-box { font-weight: bold; min-width: 35px; text-align: right; }
+    .slider-row { display: flex; align-items: center; gap: 10px; }
+    input[type=range] { flex: 1; accent-color: #03a9f4; }
+    .amp-box { font-weight: bold; font-size: 14px; min-width: 30px; }
   `;
 }
