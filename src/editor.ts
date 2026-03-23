@@ -130,12 +130,14 @@ export class WattpilotCardEditor extends LitElement {
             .label=${label}
             @value-changed=${(ev: any) => this._handleValueChanged(ev, key, 'entity')}
           ></ha-selector>
-          <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._clearValue(key, 'entity')} title="Clear Entity"></ha-icon-button>
+          <ha-icon-button class="clear-btn" title="Clear Entity" @click=${() => this._clearValue(key, 'entity')}>
+            <ha-icon icon="hass:close"></ha-icon>
+          </ha-icon-button>
           
           ${hasExtraAttributes ? html`
             <div class="checkbox-container" title="Use Attribute">
               <ha-checkbox .checked=${isObject && this._config[key].attribute !== undefined} @change=${() => this._toggleAttribute(key)}></ha-checkbox>
-              <ha-icon icon="hass:file-tree"></ha-icon>
+              <ha-icon icon="hass:file-tree" style="--mdc-icon-size: 14px;"></ha-icon>
             </div>
           ` : ''}
         </div>
@@ -149,7 +151,9 @@ export class WattpilotCardEditor extends LitElement {
                 .label="Attribute for ${label}"
                 @value-changed=${(ev: any) => this._handleValueChanged(ev, key, 'attribute')}
               ></ha-selector>
-              <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._clearValue(key, 'attribute')} title="Clear Attribute"></ha-icon-button>
+              <ha-icon-button class="clear-btn" title="Clear Attribute" @click=${() => this._clearValue(key, 'attribute')}>
+                <ha-icon icon="hass:close"></ha-icon>
+              </ha-icon-button>
             </div>
           </div>
         ` : ''}
@@ -167,31 +171,39 @@ export class WattpilotCardEditor extends LitElement {
         <div class="side-tools-grid">
             <div class="selector-container">
                 <ha-selector .hass=${this.hass} .selector=${{ icon: {} }} .value=${this._getOtherValue(slot, 'icon')} .label="${label} Icon" @value-changed=${(ev: any) => this._handleValueChanged(ev, slot, 'icon')}></ha-selector>
-                <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._clearValue(slot, 'icon')}></ha-icon-button>
+                <ha-icon-button class="clear-btn" @click=${() => this._clearValue(slot, 'icon')}>
+                    <ha-icon icon="hass:close"></ha-icon>
+                </ha-icon-button>
             </div>
             <div class="selector-container">
                 <ha-selector .hass=${this.hass} .selector=${{ text: {} }} .value=${this._getOtherValue(slot, 'unit')} .label="${label} Unit" @value-changed=${(ev: any) => this._handleValueChanged(ev, slot, 'unit')}></ha-selector>
-                <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._clearValue(slot, 'unit')}></ha-icon-button>
+                <ha-icon-button class="clear-btn" @click=${() => this._clearValue(slot, 'unit')}>
+                    <ha-icon icon="hass:close"></ha-icon>
+                </ha-icon-button>
             </div>
         </div>
         
         <div class="rules-section">
           <div class="rules-header">
             <span>Color Rules (Thresholds)</span>
-            <ha-icon-button icon="hass:plus" @click=${() => this._addColorRule(slot)} title="Add Rule"></ha-icon-button>
+            <ha-icon-button class="add-btn" @click=${() => this._addColorRule(slot)} title="Add Rule">
+                <ha-icon icon="hass:plus"></ha-icon>
+            </ha-icon-button>
           </div>
           ${colorRules.map((rule: any, idx: number) => html`
             <div class="rule-row">
               <ha-selector .hass=${this.hass} .selector=${{ number: { mode: "box", step: 0.1 } }} .value=${rule.value} label="Value" @value-changed=${(ev: any) => this._updateColorRule(slot, idx, 'value', ev.detail.value)}></ha-selector>
               <ha-selector .hass=${this.hass} .selector=${{ ui_color: {} }} .value=${rule.color} label="Color" @value-changed=${(ev: any) => this._updateColorRule(slot, idx, 'color', ev.detail.value)}></ha-selector>
-              <ha-icon-button class="delete-btn" icon="hass:delete-outline" @click=${() => this._removeColorRule(slot, idx)}></ha-icon-button>
+              <ha-icon-button class="delete-btn" @click=${() => this._removeColorRule(slot, idx)}>
+                <ha-icon icon="hass:delete-outline"></ha-icon>
+              </ha-icon-button>
             </div>
           `)}
         </div>
       </div>
     `;
   }
-
+  
   render(): TemplateResult {
     if (!this.hass || !this._config) return html``;
     const groups = [
@@ -241,26 +253,26 @@ export class WattpilotCardEditor extends LitElement {
   }
 
 static styles = css`
-    .card-config { display: flex; flex-direction: column; gap: 8px; }
+.card-config { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 100%; box-sizing: border-box; }
     ha-expansion-panel { border-radius: 8px; --ha-card-border-radius: 8px; border: 1px solid var(--divider-color); }
     
     .header-content { display: flex; align-items: center; gap: 12px; font-weight: 500; padding: 4px 0; }
-    .header-icon { color: var(--primary-color); }
+    .header-icon { color: var(--primary-color); flex-shrink: 0; }
     
-    .fields-container { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--card-background-color); }
-    .fields-container-nested { display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--secondary-background-color); }
+    .fields-container { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--card-background-color); overflow: hidden; }
+    .fields-container-nested { display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--secondary-background-color); overflow: hidden; }
     
-    .field-row { display: flex; flex-direction: column; gap: 4px; }
-    .selector-container { display: flex; align-items: center; gap: 4px; width: 100%; }
-    ha-selector { flex-grow: 1; }
-    
-    /* BUTTON (X) */
-    .clear-btn { 
-      color: var(--warning-color, #ff9800); 
-      --mdc-icon-size: 22px;
-      opacity: 0.8;
-    }
+    .field-row { display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 0; }    
+    .selector-container { display: flex; align-items: center; gap: 0px; width: 100%; min-width: 0; }
+    ha-selector { flex: 1; min-width: 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    ha-icon-button { flex-shrink: 0; --mdc-icon-button-size: 36px; display: flex; align-items: center; justify-content: center; }
+    ha-icon { display: block; --mdc-icon-size: 20px; }
+    .clear-btn { color: #ff9800 !important; }
     .clear-btn:hover { opacity: 1; background: rgba(255, 152, 0, 0.1); border-radius: 50%; }
+    .delete-btn { color: #f44336 !important; }
+    .delete-btn:hover { background: rgba(244, 67, 54, 0.1); border-radius: 50%; }
+    .add-btn { color: #4caf50 !important; --mdc-icon-size: 24px; }
     
     .checkbox-container { display: flex; flex-direction: column; align-items: center; min-width: 40px; }
     .checkbox-container ha-icon { --mdc-icon-size: 14px; color: var(--secondary-text-color); margin-top: -4px; }
@@ -268,41 +280,11 @@ static styles = css`
     .attr-row { padding-left: 24px; border-left: 3px solid var(--primary-color); margin-top: 4px; }
     .side-entity-box { border-bottom: 2px solid var(--divider-color); padding-bottom: 20px; margin-bottom: 16px; }
     .side-entity-header { font-size: 0.85rem; font-weight: bold; color: var(--primary-color); text-transform: uppercase; margin-bottom: 12px; letter-spacing: 1px; }
-    .side-tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .side-tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; width: 100%; min-width: 0; }
     
-    /* COLOUR RULES */
-    .rules-section { 
-      margin-top: 16px; 
-      background: var(--card-background-color); 
-      padding: 12px; 
-      border-radius: 8px; 
-      border: 1px dashed var(--divider-color);
-    }
-    .rules-header { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-      font-size: 0.85rem; 
-      font-weight: 600; 
-      color: var(--primary-text-color);
-      margin-bottom: 8px;
-    }
-    
-    /* BUTTON (+) */
-    .rules-header ha-icon-button { 
-      color: #4caf50; 
-      --mdc-icon-size: 28px;
-    }
-    .rules-header ha-icon-button:hover { background: rgba(76, 175, 80, 0.1); border-radius: 50%; }
-    
-    .rule-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-top: 10px; align-items: center; border-top: 1px solid var(--divider-color); padding-top: 10px; }
-    
-    /* BUTTON (X) RULES */
-    .delete-btn { color: var(--error-color, #f44336); }
-    .delete-btn:hover { background: rgba(244, 67, 54, 0.1); border-radius: 50%; }
-
-    /* Fix dla czytelności na ciemnych motywach */
-    ha-selector { --paper-item-icon-color: var(--primary-color); }
+    .rules-section { margin-top: 16px; background: var(--card-background-color); padding: 12px; border-radius: 8px; border: 1px dashed var(--divider-color); min-width: 0; }
+    .rules-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 600; color: var(--primary-text-color); margin-bottom: 8px; }
+    .rule-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 10px; align-items: center; border-top: 1px solid var(--divider-color); padding-top: 10px; min-width: 0; }
   `;
 }
 customElements.define('wattpilot-card-editor', WattpilotCardEditor);
