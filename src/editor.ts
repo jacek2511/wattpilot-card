@@ -24,6 +24,8 @@ export class WattpilotCardEditor extends LitElement {
       newConfig[configKey] = newValue;
     }
 
+    this._config = newConfig; // Aktualizacja stanu lokalnego
+
     this.dispatchEvent(new CustomEvent('config-changed', {
       detail: { config: newConfig },
       bubbles: true,
@@ -31,18 +33,24 @@ export class WattpilotCardEditor extends LitElement {
     }));
   }
 
-  // Funkcja do obsługi przełącznika atrybutów
+  // Poprawiona funkcja przełączania atrybutu
   private _toggleAttribute(configKey: string): void {
     const attrKey = `${configKey}_attr`;
-    if (this._config[attrKey] !== undefined) {
-      const newConfig = { ...this._config };
+    const newConfig = { ...this._config };
+
+    if (newConfig[attrKey] !== undefined) {
       delete newConfig[attrKey];
-      this.dispatchEvent(new CustomEvent('config-changed', {
-        detail: { config: newConfig },
-        bubbles: true,
-        composed: true,
-      }));
+    } else {
+      newConfig[attrKey] = ""; // Inicjalizacja klucza, by pokazać selector
     }
+
+    this._config = newConfig; // Wymuszenie re-renderu w LitElement
+
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      detail: { config: newConfig },
+      bubbles: true,
+      composed: true,
+    }));
   }
 
   render(): TemplateResult {
@@ -168,7 +176,10 @@ export class WattpilotCardEditor extends LitElement {
                     <div class="checkbox-container" title="Use Attribute">
                       <ha-checkbox
                         .checked=${isAttrEnabled}
-                        @change=${() => this._toggleAttribute(f.key)}
+                        @change=${(e: Event) => {
+                          e.stopPropagation();
+                          this._toggleAttribute(f.key);
+                        }}
                       ></ha-checkbox>
                       <ha-icon icon="hass:file-tree"></ha-icon>
                     </div>
@@ -185,7 +196,7 @@ export class WattpilotCardEditor extends LitElement {
                           } 
                         }}
                         .value=${this._getValue(attrKey)}
-                        .label="Select Attribute"
+                        .label="Select Attribute for ${f.label}"
                         @value-changed=${(ev: CustomEvent) => this._valueChanged(ev, attrKey)}
                       ></ha-selector>
                     </div>
@@ -224,6 +235,10 @@ export class WattpilotCardEditor extends LitElement {
       align-items: center;
       gap: 2px;
       min-width: 40px;
+    }
+
+    .checkbox-container ha-checkbox {
+      --mdc-theme-secondary: var(--primary-color);
     }
 
     .checkbox-container ha-icon {
