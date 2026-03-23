@@ -1,3 +1,8 @@
+import { LitElement, html, css, PropertyValues, TemplateResult } from 'lit';
+import { customElement, property, state, query, queryAll } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
+import { styleMap } from 'lit/directives/style-map.js';
+
 import { cardStyles } from './styles';
 import { msToMin, minToMs, wToKw, kwToW, centsToEuro, euroToCents } from './helpers';
 import './editor';
@@ -14,35 +19,32 @@ interface WattpilotConfig {
   [key: string]: any;
 }
 
-class WattpilotCard extends HTMLElement {
-  private _hass!: HomeAssistant;
-  public config!: WattpilotConfig;
-  private contentLoaded: boolean = false;
+@customElement('wattpilot-card')
+export class WattpilotCard extends LitElement {
+  
+  // Właściwości publiczne wymagane przez Home Assistant
+  @property({ attribute: false }) public hass!: HomeAssistant;
+  @state() private config!: WattpilotConfig;
+
+  // Stany wewnętrzne (Lit automatycznie przerenderuje komponent po ich zmianie)
+  @state() private _currentAmps: number = 6;
+  @state() private _isCharging: boolean = false;
+  @state() private _activePanel: string = 'none'; // do obsługi pod-menu
   
   private animIdx: number = 0;
   private _mainLoop: any = null;
   private _isInteractingC: boolean = false;
-  
-  private _currentAmps: number = 6;
-  private _currentStatus: string = '';
-  private _currentMode: string = '';
-  private _currentPhases: string = '';
-  private _currentReason: string = '';
-  private _domCache: { [selector: string]: Element | null } = {};
-  private _leds: HTMLElement[] = [];
-  private _isCharging: boolean = false;
 
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-  }
-  
+  // Pobieranie referencji do konkretnych elementów DOM (zamiast _getEl)
+  @queryAll('.led') private _leds!: NodeListOf<HTMLElement>;
+
   public static getConfigElement() {
     return document.createElement('wattpilot-card-editor');
   }
 
   public static getStubConfig() {
     return {
+      type: 'custom:wattpilot-card',
       name: 'Wattpilot',
       entity_status: "sensor.wattpilot_carstate",
       entity_mode: "select.wattpilot_charging_mode",
@@ -50,52 +52,13 @@ class WattpilotCard extends HTMLElement {
     };
   }
 
-  public setConfig(config: any) {
+  public setConfig(config: WattpilotConfig) {
     if (!config) throw new Error('Invalid configuration');
     this.config = config;
   }
 
-  // POPRAWIONE: Zoptymalizowany setter hass, wyeliminowano startAnimationLoop()
-  set hass(hass: HomeAssistant) {
-    const oldHass = this._hass;
-    this._hass = hass;
+  // --- LOGIKA POMOCNICZA ---
 
-    if (!this.contentLoaded && this.shadowRoot) {
-      this.render();
-      this.contentLoaded = true;
-      
-      this.createLedRing();
-      this.bindEvents();
-      this.updateData(); // Pierwsze, wymuszone ładowanie danych
-    } else if (this.contentLoaded && this.shouldUpdate(oldHass, hass)) {
-      this.updateData(); // Aktualizuj tylko, jeśli zmieniły się przypisane encje
-    }
-  }
-
-  private _getEl = <T extends Element>(selector: string): T | null => {
-    if (this._domCache[selector] === undefined) {
-      this._domCache[selector] = this.shadowRoot ? this.shadowRoot.querySelector(selector) : null;
-    }
-    return this._domCache[selector] as T | null;
-  };
-
-  private shouldUpdate = (oldHass: HomeAssistant | undefined, newHass: HomeAssistant): boolean => {
-    if (!oldHass) return true;
-    for (const key of Object.keys(this.config)) {
-      const entityId = this._getEntityId(key);
-      if (entityId && oldHass.states[entityId] !== newHass.states[entityId]) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  private _parseNum = (val: any, fallback: number = 0): number => {
-    if (val === undefined || val === null || val === '') return fallback;
-    const parsed = parseFloat(val);
-    return isNaN(parsed) ? fallback : Math.round(parsed);
-  };
-  
   private _getEntityId(key: string): string | undefined {
     const val = this.config[key];
     if (!val) return undefined;
@@ -107,19 +70,263 @@ class WattpilotCard extends HTMLElement {
     if (!val) return undefined;
     
     const entityId = typeof val === 'object' ? val.entity : val;
-    if (!entityId || !this._hass.states[entityId]) return undefined;
+    if (!entityId || !this.hass.states[entityId]) return undefined;
 
-    const stateObj = this._hass.states[entityId];
+    const stateObj = this.hass.states[entityId];
     if (typeof val === 'object' && val.attribute) {
       return stateObj.attributes[val.attribute];
     }
     return stateObj.state;
   }
+
+  private _parseNum(val: any, fallback: number = 0): number {
+    if (val === undefined || val === null || val === '') return fallback;
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? fallback : Math.round(parsed);
+  }
+
+  // --- CYKL ŻYCIA LIT ELEMENT ---
+
+  // Wywoływane, gdy komponent zostanie dodany do strony
+  connectedCallback() {
+    super.connectedCallback();
+    if (this._isCharging) {
+      this.startAnimationLoop();
+    }
+  }
+
+  // Wywoływane, gdy komponent zostanie usunięty ze strony
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.stopAnimationLoop();
+  }
+
+  // Metoda wywoływana za każdym razem, gdy zmieni się `hass` lub `config`
+  protected updated(changedProps: PropertyValues): void {
+    super.updated(changedProps);
+
+    if (changedProps.has('hass') || changedProps.has('config')) {
+      this.updateCalculatedStates();
+      this.renderLeds(); // Ręczna aktualizacja DOM dla pierścienia LED (ze względów wydajnościowych)
+    }
+  }
+
+  // --- GŁÓWNA LOGIKA DANYCH ---
+
+  private updateCalculatedStates() {
+    if (!this.hass || !this.config) return;
+
+    const statusId = this._getEntityId('entity_status');
+    const status = statusId ? (this.hass.states[statusId]?.state || 'Unknown') : 'Unknown';
+    
+    const chargingId = this._getEntityId('entity_charging');
+    const newIsCharging = (chargingId && this.hass.states[chargingId]?.state === 'on') || 
+                           status.toLowerCase().includes('charging');
+
+    // Zarządzanie pętlą animacji
+    if (newIsCharging !== this._isCharging) {
+      this._isCharging = newIsCharging;
+      if (this._isCharging) {
+        this.startAnimationLoop();
+      } else {
+        this.stopAnimationLoop();
+      }
+    }
+
+    // Aktualizacja prądu, chyba że użytkownik właśnie przesuwa suwak
+    const currId = this._getEntityId('entity_current');
+    const currEnt = currId ? this.hass.states[currId] : undefined;
+    if (currEnt && !this._isInteractingC) {
+      this._currentAmps = parseInt(currEnt.state, 10) || 6;
+    }
+  }
+
+  // --- AKCJE I ZDARZENIA ---
+
+  private handleServiceCall(domain: string, service: string, entityKey: string, payloadKey: string = 'value', val: any = null) {
+    const entityId = this._getEntityId(entityKey);
+    if (!entityId) return;
+
+    const payload: any = { entity_id: entityId };
+    if (val !== null) payload[payloadKey] = val;
+
+    this.hass.callService(domain, service, payload);
+  }
+
+  private handleSliderChange(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const val = parseInt(target.value);
+    
+    this.handleServiceCall('number', 'set_value', 'entity_current', 'value', val);
+    
+    // Resetujemy flagę interakcji po wysłaniu
+    setTimeout(() => { this._isInteractingC = false; }, 1000);
+  }
+
+  private handleSliderInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    this._isInteractingC = true; 
+    this._currentAmps = parseInt(target.value);
+    this.renderLeds(); // Szybki update LEDów podczas przesuwania
+  }
+
+  private toggleSubPanel(panelId: string) {
+    this._activePanel = this._activePanel === panelId ? 'none' : panelId;
+  }
+
+  // --- PIERŚCIEŃ LED (Optymalizacja: Bezpośrednie modyfikowanie DOM) ---
+  // Pozostawiamy tę część jako imperatywną modyfikację DOM, 
+  // ponieważ Lit renderujący 32 divy co 100ms zjadłby dużo procesora.
   
-  private render() {
-    if (!this.shadowRoot) return;
-    this.shadowRoot.innerHTML = `
-      <style>${cardStyles}</style>
+  private startAnimationLoop() {
+    if (!this._mainLoop) {
+      this._mainLoop = setInterval(() => {
+        this.animIdx = (this.animIdx + 1) % 32;
+        this.renderLeds();
+      }, 100);
+    }
+  }
+
+  private stopAnimationLoop() {
+    if (this._mainLoop) {
+      clearInterval(this._mainLoop);
+      this._mainLoop = null;
+      this.renderLeds(); // Wyrenderuj stan spoczynkowy
+    }
+  }
+
+  private renderLeds(): void {
+    if (!this._leds || this._leds.length === 0) return;
+
+    const statusId = this._getEntityId('entity_status');
+    const status = (statusId ? this.hass.states[statusId]?.state || '' : '').toLowerCase();
+    const mode = this._getEntityStateOrAttribute('entity_mode') || '';
+    const phases = this.getPhaseText();
+    const reason = this._getEntityStateOrAttribute('entity_reason') || '';
+    const activeAmps = Math.min(32, this._currentAmps || 6);
+
+    // Reset
+    this._leds.forEach((l) => {
+      l.className = 'led';
+      l.style.opacity = '1';
+      l.style.animation = 'none';
+    });
+
+    if (!this._isCharging) {
+      if (mode === 'Eco' && this._leds[0]) this._leds[0].classList.add('white');
+      if (mode === 'Next Trip' && this._leds[1]) this._leds[1].classList.add('white');
+    }
+
+    if (this._isCharging) {
+      const count = phases === '1-Phase' ? 1 : 3;
+      const tailLength = 4;
+
+      for (let i = 0; i < count; i++) {
+        const pos = (this.animIdx + i * 10) % 32;
+        for (let t = 0; t < tailLength; t++) {
+          const tailPos = (pos - t + 32) % 32;
+          if (tailPos < activeAmps) {
+            const led = this._leds[tailPos];
+            if (!led) continue;
+            led.classList.add('blue', 'breathing');
+
+            if (t === 0) {
+              led.style.opacity = '1';
+            } else {
+              const tailOpacity = Math.max(0.1, 0.8 - (t / tailLength) * 0.7);
+              led.classList.add('fading');
+              led.style.opacity = tailOpacity.toString();
+            }
+          }
+        }
+      }
+    } else {
+      // Stan gotowości / spoczynku
+      for (let i = 0; i < activeAmps; i++) {
+        const led = this._leds[i];
+        if (!led) continue;
+
+        if (reason === 'NotChargingBecauseFallbackAwattar') {
+          led.classList.add('blue-blink');
+        } else if (status.includes('wait car')) {
+          led.classList.add('yellow');
+        } else if (
+          status.includes('complete') &&
+          ['ChargingBecausePvSurplus', 'ChargingBecauseForceStateOn', 'ChargingBecauseFallbackDefault'].includes(reason)
+        ) {
+          led.classList.add('green');
+        } else {
+          led.classList.add('blue');
+        }
+      }
+    }
+  }
+
+  // --- METODY POMOCNICZE DLA RENDERERA ---
+
+  private getPhaseText(): string {
+    const powerId = this._getEntityId('entity_power');
+    if (!powerId || !this.hass.states[powerId]) return "Auto";
+    
+    const attr = this.hass.states[powerId].attributes;
+    const activePhases = [
+      parseFloat(attr.L1_Ampere || 0),
+      parseFloat(attr.L2_Ampere || 0),
+      parseFloat(attr.L3_Ampere || 0)
+    ].filter(amp => amp > 0.3).length;
+
+    if (activePhases >= 3) return "3-Phases";
+    if (activePhases > 0) return "1-Phase";
+    return "Auto";
+  }
+
+  private renderSideColumn(side: 'left' | 'right'): TemplateResult {
+    const rows = [];
+    for (let i = 1; i <= 5; i++) {
+      const cfgKey = `${side}${i}`;
+      const cfg = this.config[cfgKey];
+      if (!cfg) continue;
+
+      const entityId = typeof cfg === 'object' ? cfg.entity : cfg;
+      const stateObj = entityId ? this.hass.states[entityId] : undefined;
+      
+      if (stateObj) {
+        let val = (typeof cfg === 'object' && cfg.attribute) ? stateObj.attributes[cfg.attribute] : stateObj.state;
+        const numericVal = parseFloat(val);
+        if (!isNaN(numericVal) && val !== '' && val !== null) {
+          val = Math.round(numericVal);
+        }
+
+        const unit = (typeof cfg === 'object' ? cfg.unit : undefined) || stateObj.attributes.unit_of_measurement || '';
+        const icon = (typeof cfg === 'object' ? cfg.icon : undefined) || stateObj.attributes.icon || 'mdi:dots-horizontal';
+        
+        let iconColor = 'var(--primary-color)'; 
+        if (typeof cfg === 'object' && cfg.color_rules) {
+          if (typeof cfg.color_rules === 'string') {
+            iconColor = cfg.color_rules;
+          } else if (Array.isArray(cfg.color_rules)) {
+            const rules = [...cfg.color_rules].sort((a, b) => a.value - b.value);
+            for (const rule of rules) {
+              if (numericVal >= rule.value) iconColor = rule.color;
+            }
+          }
+        }
+
+        rows.push(html`
+          <div class="data-row" id="row-${side}-${i}">
+            <ha-icon icon="${icon}" style="color: ${iconColor}"></ha-icon>
+            <span>${val}${unit}</span>
+          </div>
+        `);
+      }
+    }
+    return html`<div id="${side}-col">${rows}</div>`;
+  }
+
+  // --- GŁÓWNY RENDERER ---  
+protected render(): TemplateResult {
+    if (!this.hass || !this.config) {
+      return html`
         <ha-card>
           <div class="card-header">
             <span id="reason-badge" class="reason-badge">Fronius WattPilot</span>
@@ -404,701 +611,105 @@ class WattpilotCard extends HTMLElement {
             </div>
           </div>
         </ha-card>
+      `;
+    }
+
+    const powerId = this._getEntityId('entity_power');
+    const pEnt = powerId ? this.hass.states[powerId] : undefined;
+    const powerVal = pEnt && !isNaN(parseFloat(pEnt.state)) ? `${parseFloat(pEnt.state).toFixed(1)} kW` : '-- kW';
+    
+    const soc = this._parseNum(this._getEntityStateOrAttribute('entity_soc'));
+    const socMaxRaw = this._getEntityStateOrAttribute('entity_soc_max') || this._getEntityStateOrAttribute('entity_target_soc') || 100;
+    const socMax = this._parseNum(socMaxRaw, 100);
+    const socPercent = Math.max(0, Math.min(100, soc));
+
+    const currentMode = this._getEntityStateOrAttribute('entity_mode');
+
+    const sliderPct = ((this._currentAmps - 6) / (32 - 6)) * 100;
+
+    return html`
+      <ha-card>
+        <div class="card-content">
+          <div class="columns-container">
+            ${this.renderSideColumn('left')}
+            
+            <div class="center-col">
+              <div id="led-ring">
+                ${Array.from({ length: 32 }).map((_, i) => {
+                  const angle = (i / 32) * 360 - 90;
+                  return html`
+                    <div class="led" style="transform: rotate(${angle}deg) translate(26px) rotate(${-angle}deg)"></div>
+                  `;
+                })}
+              </div>
+              
+              <div class="power-display">${powerVal}</div>
+            </div>
+
+            ${this.renderSideColumn('right')}
+          </div>
+
+          <div class="soc-container">
+            <div id="soc-bar" 
+                 class=${classMap({ 'charging-anim': this._isCharging })}
+                 style="width: ${socPercent}%">
+            </div>
+            <span id="soc-text">${soc}/${socMax} %</span>
+          </div>
+
+          <div class="slider-container">
+            <input type="range" 
+                   id="slider-current" 
+                   min="6" max="32" step="1" 
+                   .value=${this._currentAmps.toString()}
+                   style="--v: ${sliderPct}%"
+                   @input=${this.handleSliderInput}
+                   @change=${this.handleSliderChange} />
+            <span id="curr-val-txt">${this._currentAmps} A</span>
+          </div>
+
+          <div class="controls">
+            ${!this._isCharging ? html`
+              <button id="btn-start" @click=${() => this.handleServiceCall('button', 'press', 'entity_start')}>
+                Start
+              </button>
+            ` : html`
+              <button id="btn-stop" @click=${() => this.handleServiceCall('button', 'press', 'entity_stop')}>
+                Stop
+              </button>
+            `}
+          </div>
+
+          <div class="modes">
+            <button class="mode-btn ${classMap({ active: currentMode === 'Eco' })}"
+                    @click=${() => this.handleServiceCall('select', 'select_option', 'entity_mode', 'option', 'Eco')}>
+              Eco
+            </button>
+            <button class="mode-btn ${classMap({ active: currentMode === 'Next Trip' })}"
+                    @click=${() => this.handleServiceCall('select', 'select_option', 'entity_mode', 'option', 'Next Trip')}>
+              Next Trip
+            </button>
+          </div>
+          
+        </div>
+      </ha-card>
     `;
   }
 
-  private createLedRing() {
-    const ring = this._getEl<HTMLElement>('#led-ring');
-    if (!ring) return;
-    ring.innerHTML = '';
-    this._leds = [];
-    
-    for (let i = 0; i < 32; i++) {
-      const led = document.createElement('div');
-      led.className = 'led';
-      const angle = (i / 32) * 360 - 90;
-      led.style.transform = `rotate(${angle}deg) translate(26px) rotate(${-angle}deg)`;
-      ring.appendChild(led);
-      this._leds.push(led); // Zapisujemy referencje na stałe
-    }
-  }
+  static styles = [
+    cardStyles,
+    css`
+      /* Tutaj możesz dodać specyficzne style tylko dla LitElement, np ukrywanie nieaktywnych paneli */
+      .hidden { display: none !important; }
+    `
+  ];
 
-  private updateLedRing(status: string, amps: string | number, mode: string, phases: string, reason: string): void {
-    this._currentAmps = typeof amps === 'string' ? parseInt(amps, 10) : amps;
-    this._currentStatus = (status || '').toLowerCase();
-    this._currentMode = mode;
-    this._currentPhases = phases;
-    this._currentReason = reason;
-  }
-
-  private renderLeds(): void {
-    if (this._leds.length === 0) return;
-
-    this._leds.forEach((l) => {
-      l.className = 'led';
-      l.style.opacity = '1';
-      l.style.animation = 'none';
-    });
-
-    const status = this._currentStatus || '';
-    const activeAmps = Math.min(32, this._currentAmps || 6);
-
-    if (!status.includes('charging')) {
-      if (this._currentMode === 'Eco' && this._leds[0]) this._leds[0].classList.add('white');
-      if (this._currentMode === 'Next Trip' && this._leds[1]) this._leds[1].classList.add('white');
-    }
-
-    if (status.includes('charging')) {
-      const count = this._currentPhases === '1-Phase' ? 1 : 3;
-      const tailLength = 4;
-
-      for (let i = 0; i < count; i++) {
-        const pos = (this.animIdx + i * 10) % 32;
-        for (let t = 0; t < tailLength; t++) {
-          const tailPos = (pos - t + 32) % 32;
-          if (tailPos < activeAmps) {
-            const led = this._leds[tailPos];
-            if (!led) continue;
-            led.classList.add('blue', 'breathing');
-
-            if (t === 0) {
-              led.style.opacity = '1';
-            } else {
-              const tailOpacity = Math.max(0.1, 0.8 - (t / tailLength) * 0.7);
-              led.classList.add('fading');
-              led.style.opacity = tailOpacity.toString();
-            }
-          }
-        }
-      }
-    } else {
-      for (let i = 0; i < activeAmps; i++) {
-        const led = this._leds[i];
-        if (!led) continue;
-
-        if (this._currentReason === 'NotChargingBecauseFallbackAwattar') {
-          led.classList.add('blue-blink');
-        } else if (status.includes('wait car')) {
-          led.classList.add('yellow');
-        } else if (
-          status.includes('complete') &&
-          (this._currentReason === 'ChargingBecausePvSurplus' ||
-           this._currentReason === 'ChargingBecauseForceStateOn' ||
-           this._currentReason === 'ChargingBecauseFallbackDefault')
-        ) {
-          led.classList.add('green');
-        } else {
-          led.classList.add('blue');
-        }
-      }
-    }
-  }
-
-  private updateWhiteSlider(val: number): void {
-    const slider = this._getEl<HTMLElement>('#slider-current');
-    const textLabel = this._getEl<HTMLElement>('#curr-val-txt');
-
-    if (slider) {
-      const pct = ((val - 6) / (32 - 6)) * 100;
-      slider.style.setProperty('--v', `${pct}%`);
-      if (slider instanceof HTMLInputElement) {
-        slider.value = val.toString();
-      }
-    }
-
-    if (textLabel) textLabel.innerText = `${val} A`;
-  }
-  
-  private toggleAnimationLoop(isCharging: boolean) {
-    if (isCharging && !this._mainLoop) {
-      this._mainLoop = setInterval(() => {
-        this.animIdx = (this.animIdx + 1) % 32;
-        this.renderLeds();
-      }, 100);
-    } else if (!isCharging && this._mainLoop) {
-      clearInterval(this._mainLoop);
-      this._mainLoop = null;
-      this.renderLeds();
-    }
-  }
-
-  private renderSideColumn(side: 'left' | 'right'): void {
-    const col = this._getEl<HTMLElement>(`#${side}-col`);
-    if (!col) return;
-
-    col.innerHTML = '';
-    
-    for (let i = 1; i <= 5; i++) {
-      const cfg = this.config[`${side}${i}`];
-      if (cfg) {
-        const row = document.createElement('div');
-        row.className = 'data-row';
-        row.id = `row-${side}-${i}`;
-        row.innerHTML = `
-          <ha-icon id="icon-${side}-${i}"></ha-icon>
-          <span id="val-${side}-${i}"></span>
-        `;
-        col.appendChild(row);
-      }
-    }
-  }
-
-  private updateSideColumn(side: 'left' | 'right'): void {
-    if (!this._hass) return;
-
-    for (let i = 1; i <= 5; i++) {
-      const cfg = this.config[`${side}${i}`];
-      if (!cfg) continue;
-      
-      const entityId = typeof cfg === 'object' ? cfg.entity : cfg;
-      if (!entityId) continue;
-
-      const stateObj = this._hass.states[entityId];
-      if (!stateObj) continue;
-
-      let val = (typeof cfg === 'object' && cfg.attribute) ? stateObj.attributes[cfg.attribute] : stateObj.state;
-      const numericVal = parseFloat(val);
-      
-      if (!isNaN(numericVal) && val !== '' && val !== null) {
-        val = Math.round(numericVal);
-      }
-      
-      const unit = (typeof cfg === 'object' ? cfg.unit : undefined) || stateObj.attributes.unit_of_measurement || '';
-      const icon = (typeof cfg === 'object' ? cfg.icon : undefined) || stateObj.attributes.icon || 'mdi:dots-horizontal';
-      
-      const valEl = this._getEl<HTMLElement>(`#val-${side}-${i}`);
-      const iconEl = this._getEl<HTMLElement>(`#icon-${side}-${i}`) as any;
-
-      if (valEl) valEl.innerText = `${val}${unit}`;
-
-      if (iconEl) {
-        iconEl.setAttribute('icon', icon);
-        let iconColor = 'var(--primary-color)'; 
-        
-        if (typeof cfg === 'object' && cfg.color_rules) {
-          if (typeof cfg.color_rules === 'string') {
-            iconColor = cfg.color_rules;
-          } else if (Array.isArray(cfg.color_rules)) {
-            const rules = [...cfg.color_rules].sort((a, b) => a.value - b.value);
-            for (const rule of rules) {
-              if (numericVal >= rule.value) iconColor = rule.color;
-            }
-          }
-        }
-        iconEl.style.color = iconColor;
-      }
-    }
-  }
-
-  private bindUIElement(selector: string, domain: string, service: string, valueKey: string = 'value'): void {
-    const el = this._getEl<HTMLElement>(selector) as any;
-    if (!el) return;
-
-    const isTime = el.dataset.istime === 'true';
-    const isPower = el.dataset.ispower === 'true';
-    const isPrice = el.dataset.isprice === 'true' || selector.includes('price');
-    const confKey = el.dataset.entity;
-    
-    const entityId = this._getEntityId(confKey);
-
-    if (el.tagName === 'INPUT') {
-      el.addEventListener('input', (e: any) => {
-        const txtEl = this._getEl<HTMLElement>(`${selector}-txt`);
-        if (txtEl) {
-          let suffix = isTime ? 'm' : isPower ? 'kW' : isPrice ? '€' : selector.includes('lvl') ? 'A' : '%';
-          txtEl.innerText = `${e.target.value}${suffix}`;
-        }
-      });
-    }
-
-    el.addEventListener('change', (e: any) => {
-      if (!entityId) return;
-      let val = el.tagName === 'HA-SWITCH' ? null : e.target.value;
-
-      if (el.type === 'time' && val !== null) {
-        this._hass.callService('input_datetime', 'set_datetime', {
-          entity_id: entityId,
-          time: val + ":00"
-        });
-        setTimeout(() => el.blur(), 500);
-        return;
-      }
-
-      if (val !== null) {
-        if (isTime) val = minToMs(val);
-        if (isPower) val = kwToW(val);
-        if (isPrice) val = euroToCents(val);
-      }
-
-      const payload: any = { entity_id: entityId };
-      if (val !== null) payload[valueKey] = val;
-
-      const srv = el.tagName === 'HA-SWITCH' ? (el.checked ? 'turn_on' : 'turn_off') : service;
-      this._hass.callService(domain, srv, payload);
-
-      if (el.tagName === 'INPUT') setTimeout(() => el.blur(), 500);
-    });
-  }
-
-  private updateUIElement(selector: string, states: any): void {
-    const el = this._getEl<HTMLElement>(selector) as any;
-    if (!el) return;
-    
-    const confKey = el.dataset.entity;
-    const entityId = this._getEntityId(confKey);
-    if (!entityId) return;
-
-    const entity = states[entityId];
-    if (!entity) return;
-
-    if (selector === '#internal-error-txt') {
-      const state = (entity.state || '').toLowerCase();
-      const hasError = state !== 'none' && state !== '0' && state !== 'unknown' && state !== 'unavailable';
-      el.innerText = hasError ? entity.state : 'None';
-      el.style.color = hasError ? '#f44336' : 'var(--primary-text-color)';
-      return;
-    }
-
-    if (selector === '#firmware-update-txt') {
-      const isUpdate = entity.state === 'on';
-      const inProgress = entity.attributes.in_progress === true;
-      const pct = entity.attributes.update_percentage;
-      
-      el.innerText = isUpdate ? "Update Available" : "No Update";
-      el.style.color = isUpdate ? "#4caf50" : "inherit";
-
-      const vTxt = this._getEl<HTMLElement>('#firmware-version-txt');
-      if (vTxt) vTxt.innerText = `${entity.attributes.installed_version || '--'} / ${entity.attributes.latest_version || '--'}`;
-
-      const btn = this._getEl<HTMLElement>('#btn-install-update');
-      const progCont = this._getEl<HTMLElement>('#update-progress-container');
-      const progBar = this._getEl<HTMLElement>('#update-progress-bar');
-
-      if (inProgress && pct !== null) {
-        if (progCont) progCont.style.display = 'block';
-        if (progBar) {
-          progBar.style.display = 'block';
-          progBar.style.width = `${pct}%`;
-        }
-        el.innerText = `Updating: ${pct}%`;
-        if (btn) btn.style.display = 'none';
-      } else {
-        if (progCont) progCont.style.display = 'none';
-        if (btn) btn.style.display = isUpdate ? 'block' : 'none';
-      }
-      return;
-    }
-
-    if (el.tagName === 'HA-SWITCH') {
-      el.checked = entity.state === 'on';
-    } 
-    else if (el.tagName === 'SELECT') {
-      if (el.children.length === 0 && entity.attributes.options) {
-        entity.attributes.options.forEach((opt: string) => {
-          const option = document.createElement('option');
-          option.value = opt;
-          option.innerText = opt;
-          el.appendChild(option);
-        });
-      }
-      if (document.activeElement !== el) el.value = entity.state;
-    } 
-    else if (el.tagName === 'INPUT') {
-      if (document.activeElement === el) return;
-
-      const isTime = el.dataset.istime === 'true';
-      const isPower = el.dataset.ispower === 'true';
-      const isPrice = el.dataset.isprice === 'true' || selector.includes('price');
-
-      if (el.type === 'time') {
-        if (entity.state && entity.state.includes(':')) {
-          el.value = entity.state.substring(0, 5);
-        }
-        return;
-      }
-
-      let displayVal = entity.state;
-      if (isTime) displayVal = msToMin(entity.state);
-      else if (isPower) displayVal = wToKw(entity.state);
-      else if (isPrice) displayVal = centsToEuro(entity.state);
-
-      el.value = displayVal;
-
-      const txtEl = this._getEl<HTMLElement>(`${selector}-txt`);
-      if (txtEl) {
-        let suffix = isTime ? 'm' : isPower ? 'kW' : isPrice ? '€' : selector.includes('lvl') ? 'A' : '%';
-        txtEl.innerText = `${displayVal}${suffix}`;
-      }
-    }
-  }
-  
-  private bindEvents() {
-    const root = this.shadowRoot;
-    if (!root) return;
-
-    root.querySelectorAll('.mode-btn').forEach(btn => {
-      (btn as HTMLElement).onclick = () => {
-        const modeId = this._getEntityId('entity_mode');
-        if (modeId) this._hass.callService('select', 'select_option', { entity_id: modeId, option: (btn as HTMLElement).dataset.val });
-      };
-    });
-
-    const btnStart = this._getEl<HTMLElement>('#btn-start');
-    if (btnStart) btnStart.onclick = () => {
-        const startId = this._getEntityId('entity_start');
-        if (startId) this._hass.callService('button', 'press', { entity_id: startId });
-    };
-    
-    const btnStop = this._getEl<HTMLElement>('#btn-stop');
-    if (btnStop) btnStop.onclick = () => {
-        const stopId = this._getEntityId('entity_stop');
-        if (stopId) this._hass.callService('button', 'press', { entity_id: stopId });
-    };
-    
-    const btnForce = this._getEl<HTMLElement>('#btn-force');
-    if (btnForce) btnForce.onclick = () => {
-        const forceId = this._getEntityId('entity_force');
-        if (forceId) this._hass.callService('button', 'press', { entity_id: forceId });
-    };
-    
-    const btnRestart = this._getEl<HTMLElement>('#btn-restart');
-    if (btnRestart) {
-      btnRestart.onclick = () => {
-        const restartId = this._getEntityId('entity_restart');
-        if(restartId && confirm("Are you sure you want to restart Wattpilot?")) {
-          this._hass.callService('button', 'press', { entity_id: restartId });
-        }
-      };
-    }
-
-    const installBtn = this._getEl<HTMLButtonElement>('#btn-install-update');
-    if (installBtn) {
-      installBtn.addEventListener('click', () => {
-        const entityId = this._getEntityId('entity_firmware_update');
-        if (entityId) {
-          this._hass.callService('update', 'install', { entity_id: entityId });
-          installBtn.disabled = true;
-          installBtn.innerText = "Starting...";
-        }
-      });
-    }
-
-    const currSlider = this._getEl<HTMLInputElement>('#slider-current');
-    if (currSlider) {
-      currSlider.oninput = (e: any) => {
-        const val = parseInt(e.target.value);
-        this._isInteractingC = true; 
-        this._currentAmps = val;     
-        this.updateWhiteSlider(val);
-        this.renderLeds();            
-      };
-      currSlider.onchange = (e: any) => {
-        const currId = this._getEntityId('entity_current');
-        if (currId) this._hass.callService('number', 'set_value', { entity_id: currId, value: parseInt(e.target.value) });
-        setTimeout(() => { this._isInteractingC = false; }, 1000);
-      };
-    }
-
-    root.querySelectorAll('#phase-ctrl .phase-btn').forEach(btn => {
-      (btn as HTMLElement).onclick = () => {
-          const phaseId = this._getEntityId('entity_phase');
-          if (phaseId) this._hass.callService('select', 'select_option', { entity_id: phaseId, option: (btn as HTMLElement).dataset.val });
-      };
-    });
-
-    root.querySelectorAll('.sub-menu-trigger').forEach(trigger => {
-      (trigger as HTMLElement).onclick = () => {
-        const targetId = (trigger as HTMLElement).dataset.target;
-        if (!targetId) return;
-        const targetPanel = root.querySelector(`#${targetId}`);
-        if (!targetPanel) return;
-
-        const isActive = trigger.classList.contains('active');
-        root.querySelectorAll('.sub-menu-trigger').forEach(t => t.classList.remove('active'));
-        root.querySelectorAll('.sub-panel').forEach(p => p.classList.add('hidden'));
-        if (!isActive) {
-          trigger.classList.add('active');
-          targetPanel.classList.remove('hidden');
-        }
-      };
-    });
-
-    this.bindUIElement('#target-soc', 'input_number', 'set_value');
-    this.bindUIElement('#min-soc', 'input_number', 'set_value');
-    this.bindUIElement('#boost-limit', 'number', 'set_value');
-    this.bindUIElement('#next-trip-pwr', 'number', 'set_value');
-    this.bindUIElement('#min-time', 'number', 'set_value');
-    this.bindUIElement('#phase-delay', 'number', 'set_value');
-    this.bindUIElement('#phase-interval', 'number', 'set_value');
-    this.bindUIElement('#pv-threshold', 'number', 'set_value');
-    this.bindUIElement('#phase-power-lvl', 'number', 'set_value');
-    this.bindUIElement('#start-at', 'number', 'set_value');
-    this.bindUIElement('#max-price-input', 'number', 'set_value');
-    this.bindUIElement('#lock-sel', 'select', 'select_option', 'option');
-    this.bindUIElement('#cable-sel', 'select', 'select_option', 'option');
-    this.bindUIElement('#boost-type-sel', 'select', 'select_option', 'option');
-    this.bindUIElement('#next-trip-time', 'input_datetime', 'set_datetime', 'time');
-    this.bindUIElement('#hotspot-sw', 'switch', '');
-    this.bindUIElement('#pause-sw', 'switch', '');
-    this.bindUIElement('#boost-sw', 'switch', '');
-    this.bindUIElement('#pv-surplus-sw', 'switch', '');
-    this.bindUIElement('#eco-persist-sw', 'switch', '');
-    this.bindUIElement('#sim-unplug-sw', 'switch', '');
-    this.bindUIElement('#power-outage-sw', 'switch', '');
-    this.bindUIElement('#ground-check-sw', 'switch', '');
-    this.bindUIElement('#led-save-sw', 'switch', '');
-    this.bindUIElement('#awattar-sw', 'switch', '');
-  }
-
-  private updateData(): void {
-    if (!this._hass || !this.config) return;
-    const states = this._hass.states;
-
-    const statusId = this._getEntityId('entity_status');
-    const status = statusId ? (states[statusId]?.state || 'Unknown') : 'Unknown';
-    
-    const chargingId = this._getEntityId('entity_charging');
-    this._isCharging = (chargingId && states[chargingId]?.state === 'on') || 
-                       status.toLowerCase().includes('charging');
-
-    this.toggleAnimationLoop(this._isCharging);
-
-    const leftCol = this._getEl<HTMLElement>('#left-col');
-    if (leftCol && leftCol.innerHTML === '') {
-      this.renderSideColumn('left');
-      this.renderSideColumn('right');
-    }
-    this.updateSideColumn('left');
-    this.updateSideColumn('right');
-
-    const powerId = this._getEntityId('entity_power');
-    const pEnt = powerId ? states[powerId] : undefined;
-    let totalA_text = "0.0";
-    let phaseText = "Auto";
-
-    if (pEnt) {
-      const attr = pEnt.attributes;
-      const powerEl = this._getEl<HTMLElement>('#power');
-      if (powerEl && !isNaN(parseFloat(pEnt.state))) {
-          powerEl.innerText = `${parseFloat(pEnt.state).toFixed(1)} kW`;
-      }
-
-      const a1 = parseFloat(attr.L1_Ampere || 0);
-      const a2 = parseFloat(attr.L2_Ampere || 0);
-      const a3 = parseFloat(attr.L3_Ampere || 0);
-      totalA_text = (a1 + a2 + a3).toFixed(1);
-
-      const activePhases = [a1, a2, a3].filter(amp => amp > 0.3).length;
-      if (activePhases >= 3) phaseText = "3-Phases";
-      else if (activePhases > 0) phaseText = "1-Phase";
-
-      const sessionEnergyEl = this._getEl<HTMLElement>('#session-energy');
-      const sessionEnergyVal = this._getEntityStateOrAttribute('entity_session_energy');
-      if (sessionEnergyEl && sessionEnergyVal !== undefined) {
-        sessionEnergyEl.innerText = `${parseFloat(sessionEnergyVal as string).toFixed(1)} kWh`;
-      }
-
-      const ampVal = this._getEl<HTMLElement>('#amp-val');
-      const phaseInfo = this._getEl<HTMLElement>('#phase-info');
-      if (ampVal) ampVal.innerText = `${totalA_text} A`;
-      if (phaseInfo) phaseInfo.innerText = phaseText;
-    }
-
-    const soc = this._parseNum(this._getEntityStateOrAttribute('entity_soc'));
-    const socMaxRaw = this._getEntityStateOrAttribute('entity_soc_max') || 
-                      this._getEntityStateOrAttribute('entity_target_soc') || 100;
-    const socMax = this._parseNum(socMaxRaw, 100);
-
-    const socTextEl = this._getEl<HTMLElement>('#soc-text');
-    if (socTextEl) socTextEl.innerText = `${soc}/${socMax} %`;
-
-    const socBar = this._getEl<HTMLElement>('#soc-bar');
-    const socIcon = this._getEl<HTMLElement>('#soc-icon') as any;
-
-    if (socBar && socIcon) {
-      const s = Math.max(0, Math.min(100, soc));
-      socBar.style.width = `${s}%`;
-
-      let batLevel = Math.round(s / 10) * 10;
-      let iconStr = this._isCharging ? 'mdi:battery-charging' : 'mdi:battery';
-      if (s >= 100) iconStr = this._isCharging ? 'mdi:battery-charging-100' : 'mdi:battery';
-      else if (s <= 5) iconStr = this._isCharging ? 'mdi:battery-charging-outline' : 'mdi:battery-outline';
-      else iconStr += `-${batLevel}`;
-      socIcon.setAttribute('icon', iconStr);
-
-      let r, g, b;
-      if (s < 50) {
-        const p = s / 50;
-        r = Math.round(239 + (245 - 239) * p);
-        g = Math.round(68 + (158 - 68) * p);
-        b = Math.round(68 + (11 - 68) * p);
-      } else {
-        const p = (s - 50) / 50;
-        r = Math.round(245 + (34 - 245) * p);
-        g = Math.round(158 + (197 - 158) * p);
-        b = Math.round(11 + (94 - 11) * p);
-      }
-
-      const dynamicColor = `rgb(${r}, ${g}, ${b})`;
-      const staticGradient = `linear-gradient(90deg, #ef4444 0%, ${dynamicColor} 100%)`;
-      const stripes = `linear-gradient(-45deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)`;
-
-      if (this._isCharging) {
-        socBar.classList.add('charging-anim');
-        socBar.style.background = `${stripes}, ${staticGradient}`;
-        socBar.style.backgroundSize = `30px 30px, 100% 100%`;
-      } else {
-        socBar.classList.remove('charging-anim');
-        socBar.style.background = staticGradient;
-      }
-      socIcon.style.color = dynamicColor;
-    }
-
-    const chargeEndStateVal = this._getEntityStateOrAttribute('entity_charge_end');
-    const chargeEndEl = this._getEl<HTMLElement>('#charge-end-text');
-    if (chargeEndEl) {
-      if (this._isCharging && chargeEndStateVal && !['unknown', 'unavailable'].includes(chargeEndStateVal.toString())) {
-        try {
-          const endDate = new Date(chargeEndStateVal);
-          const diffMs = endDate.getTime() - new Date().getTime();
-          if (diffMs > 0) {
-            const h = Math.floor(diffMs / 3600000);
-            const m = Math.floor((diffMs % 3600000) / 60000);
-            chargeEndEl.innerText = `${h > 0 ? h + 'h ' : ''}${m}m left`;
-          } else chargeEndEl.innerText = '';
-        } catch { chargeEndEl.innerText = ''; }
-      } else chargeEndEl.innerText = '';
-    }
-
-    const currId = this._getEntityId('entity_current');
-    const currEnt = currId ? states[currId] : undefined;
-    if (currEnt && !this._isInteractingC) {
-      const curr = parseInt(currEnt.state, 10) || 6;
-      this._currentAmps = curr;
-      const slider = this._getEl<HTMLInputElement>('#slider-current');
-      if (slider) slider.value = curr.toString();
-      this.updateWhiteSlider(curr);
-    }
-
-    const rangeRaw = this._getEntityStateOrAttribute('entity_range');
-    if (rangeRaw !== undefined) {
-      const range = this._parseNum(rangeRaw);
-      let rangeMaxRaw = this._getEntityStateOrAttribute('entity_max_range');
-      
-      if (rangeMaxRaw === undefined) {
-         const rangeId = this._getEntityId('entity_range');
-         if (rangeId && states[rangeId] && states[rangeId].attributes.maxrange) {
-             rangeMaxRaw = states[rangeId].attributes.maxrange;
-         } else {
-             rangeMaxRaw = 0;
-         }
-      }
-      const rangeMax = this._parseNum(rangeMaxRaw);
-      const rangeTextEl = this._getEl<HTMLElement>('#range-text');
-      if (rangeTextEl) rangeTextEl.innerText = `${range}/${rangeMax} km`;
-    }
-
-    const reasonRaw = this._getEntityStateOrAttribute('entity_reason');
-    const reasonText = reasonRaw !== undefined ? reasonRaw : "Fronius Wattpilot";
-    const reasonBadge = this._getEl<HTMLElement>('#reason-badge');
-    if (reasonBadge) reasonBadge.innerText = reasonText;
-
-    const statusBadge = this._getEl<HTMLElement>('#status-badge');
-    if (statusBadge) {
-      statusBadge.innerText = status;
-      const energyRaw = this._getEntityStateOrAttribute('entity_energy');
-      if (this._isCharging && energyRaw !== undefined) {
-        const color = parseFloat(energyRaw as string) >= 0 ? '#22c55e' : '#ef4444';
-        statusBadge.style.borderColor = color;
-        statusBadge.style.color = color;
-      } else if (status.toLowerCase().includes('complete') && soc === 100) {
-        statusBadge.style.borderColor = '#22c55e';
-        statusBadge.style.color = '#22c55e';
-      } else {
-        statusBadge.style.borderColor = 'var(--primary-color)';
-        statusBadge.style.color = 'var(--primary-color)';
-      }
-    }
-
-    this._getEl<HTMLElement>('#btn-start')?.classList.toggle('hidden', this._isCharging);
-    this._getEl<HTMLElement>('#btn-stop')?.classList.toggle('hidden', !this._isCharging);
-
-    const modeRaw = this._getEntityStateOrAttribute('entity_mode');
-    this.shadowRoot?.querySelectorAll('.mode-btn').forEach(b => 
-      (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.val === modeRaw)
-    );
-
-    const pModeRaw = this._getEntityStateOrAttribute('entity_phase');
-    this.shadowRoot?.querySelectorAll('#phase-ctrl .phase-btn').forEach(b => 
-      (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.val === pModeRaw)
-    );
-
-    this.updateLedRing(status, this._currentAmps, modeRaw || '', phaseText, reasonText);
-    this.renderLeds();
-
-    const uiElements = [
-      '#target-soc', '#min-soc', '#boost-limit', '#next-trip-pwr', '#next-trip-time', 
-      '#min-time', '#phase-delay', '#phase-interval', '#pv-threshold', 
-      '#phase-power-lvl', '#start-at', '#max-price-input', '#lock-sel', '#cable-sel', 
-      '#boost-type-sel', '#hotspot-sw', '#pause-sw', '#boost-sw', '#pv-surplus-sw', 
-      '#eco-persist-sw', '#sim-unplug-sw', '#power-outage-sw', '#ground-check-sw', 
-      '#led-save-sw', '#awattar-sw', '#internal-error-txt', '#firmware-update-txt'
-    ];
-    uiElements.forEach(sel => this.updateUIElement(sel, states));
-
-    const updateTxt = (id: string, val: string) => {
-      const el = this._getEl<HTMLElement>(id);
-      if (el) el.innerText = val;
-    };
-
-    updateTxt('#wifi-state-txt', this._getEntityStateOrAttribute('entity_wifi_state') || '--');
-    updateTxt('#wifi-conn-txt', this._getEntityStateOrAttribute('entity_wifi_conn') || '--');
-    const wifiSig = this._getEntityStateOrAttribute('entity_wifi_signal');
-    updateTxt('#wifi-signal-txt', (wifiSig || '--') + ' dBm');
-
-    const totalCharged = this._getEntityStateOrAttribute('entity_total_charged') || '0';
-    updateTxt('#total-charged-txt', `${this._parseNum(totalCharged)} kWh`);
-
-    if (pEnt && pEnt.attributes) {
-      const attr = pEnt.attributes;
-      const formatPhase = (prefix: string) => {
-        const p = Math.round(parseFloat(attr[`${prefix}_Power`] || 0));
-        const v = parseFloat(attr[`${prefix}_Voltage`] || 0).toFixed(1);
-        const a = parseFloat(attr[`${prefix}_Ampere`] || 0).toFixed(1);
-        const r = parseFloat(attr[`${prefix}_PowerRelative`] || 0).toFixed(1);
-        return `<span class="phase-label">${prefix}:</span> ${p}W, ${v}V, ${a}A, ${r}%`;
-      };
-      
-      const l1 = this._getEl<HTMLElement>('#l1-line');
-      if (l1) l1.innerHTML = formatPhase('L1');
-      const l2 = this._getEl<HTMLElement>('#l2-line');
-      if (l2) l2.innerHTML = formatPhase('L2');
-      const l3 = this._getEl<HTMLElement>('#l3-line');
-      if (l3) l3.innerHTML = formatPhase('L3');
-      
-      const nLine = this._getEl<HTMLElement>('#n-line');
-      if (nLine) {
-        const p = Math.round(parseFloat(attr.N_Power || 0));
-        const v = parseFloat(attr.N_Voltage || 0).toFixed(1);
-        nLine.innerHTML = `<span class="phase-label">N:</span> ${p}W, ${v}V`;
-      }
-    }
-  }
-
-  disconnectedCallback() {
-    if (this._mainLoop) {
-      clearInterval(this._mainLoop);
-      this._mainLoop = null;
-    }
-  }
-  
   getCardSize() {
     return 3;
   }
 }
 
-customElements.define('wattpilot-card', WattpilotCard);
-
+// Rejestracja w Home Assistant
 (window as any).customCards = (window as any).customCards || [];
 (window as any).customCards.push({
   type: 'wattpilot-card',
