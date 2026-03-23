@@ -27,6 +27,7 @@ export class WattpilotCard extends LitElement {
   // Stany wewnątrz komponentu
   @state() private _currentAmps: number = 6;
   @state() private _isCharging: boolean = false;
+  @state() private _activePanel: string = '';
   @state() private _isInteracting: boolean = false;
   @state() private _animIdx: number = 0;
   
@@ -147,6 +148,9 @@ export class WattpilotCard extends LitElement {
     }));
   }
 
+  private _togglePanel(panelId: string) {
+    this._activePanel = this._activePanel === panelId ? '' : panelId;
+  }
   // --- HTML RENDERER ---
 
   private _renderSideColumn(side: 'left' | 'right'): TemplateResult {
@@ -273,10 +277,26 @@ export class WattpilotCard extends LitElement {
           <div class="settings-header">
             <span>CHARGE CURRENT</span>
             <div class="header-icons">
-              <ha-icon icon="mdi:information-outline" @click=${() => this._openDetails('entity_info_sensor')}></ha-icon>
-              <ha-icon icon="mdi:wifi" @click=${() => this._openDetails('entity_wifi_sensor')}></ha-icon>
-              <ha-icon icon="mdi:battery-charging" @click=${() => this._openDetails('entity_current')}></ha-icon>
-              <ha-icon icon="mdi:cog" @click=${() => this._openDetails('entity_settings')}></ha-icon>
+              <ha-icon 
+                icon="mdi:information-outline" 
+                class="${this._activePanel === 'info-panel' ? 'active-icon' : ''}"
+                @click=${() => this._togglePanel('info-panel')} title="Info">
+              </ha-icon>
+              <ha-icon 
+                icon="mdi:wifi-cog" 
+                class="${this._activePanel === 'wifi-panel' ? 'active-icon' : ''}"
+                @click=${() => this._togglePanel('wifi-panel')} title="WiFi Settings">
+              </ha-icon>
+              <ha-icon 
+                icon="mdi:battery-charging-60" 
+                class="${this._activePanel === 'charge-settings-panel' ? 'active-icon' : ''}"
+                @click=${() => this._togglePanel('charge-settings-panel')} title="Charge Settings">
+              </ha-icon>
+              <ha-icon 
+                icon="mdi:cog" 
+                class="${this._activePanel === 'settings-panel' ? 'active-icon' : ''}"
+                @click=${() => this._togglePanel('settings-panel')} title="Settings">
+              </ha-icon>
             </div>
           </div>
 
@@ -284,11 +304,62 @@ export class WattpilotCard extends LitElement {
             <span>Phases</span>
             <div class="chips">
               <div class="chip ${phases === 'Auto' ? 'active' : ''}" @click=${() => this._setPhases('Auto')}>Auto</div>
-              <div class="chip ${phases === '1' ? 'active' : ''}" @click=${() => this._setPhases('1 Phase')}>1</div>
-              <div class="chip ${phases === '3' ? 'active' : ''}" @click=${() => this._setPhases('3 Phases')}>3</div>
+              <div class="chip ${phases === '1' ? 'active' : ''}" @click=${() => this._setPhases('1')}>1</div>
+              <div class="chip ${phases === '3' ? 'active' : ''}" @click=${() => this._setPhases('3')}>3</div>
             </div>
           </div>
           
+          <div class="slider-row">
+            <span class="slider-label">Max Current</span>
+            <input type="range" min="6" max="16" step="1" 
+                   .value=${this._currentAmps.toString()}
+                   @input=${this._handleSliderInput}
+                   @change=${this._handleSliderChange}>
+            <div class="amp-box">${this._currentAmps}A</div>
+          </div>
+
+          <div id="settings-panel" class="sub-panel" style="display: ${this._activePanel === 'settings-panel' ? 'block' : 'none'};">
+             <div class="divider"></div>
+             <div class="section-title">SYSTEM SETTINGS</div>
+             <div class="control-row">
+                <span class="control-label">Lock Level</span>
+                <span>(Brak encji - do oprogramowania w kolejnym kroku)</span>
+             </div>
+             <button id="btn-restart" style="width:100%; padding:8px; border-radius:4px; border:1px solid #ef4444; background:transparent; color:#ef4444; cursor:pointer; font-weight:bold; margin-top:5px;">RESTART WATTPILOT</button>
+          </div>
+
+          <div id="wifi-panel" class="sub-panel" style="display: ${this._activePanel === 'wifi-panel' ? 'block' : 'none'};">
+             <div class="divider"></div>
+             <div class="section-title">WIFI CONFIGURATION</div>
+             <div class="control-row"><span class="control-label">Status</span><span class="val-txt">--</span></div>
+             <div class="control-row"><span class="control-label">Network</span><span class="val-txt">--</span></div>
+             <div class="control-row"><span class="control-label">Signal Strength</span><span class="val-txt">--</span></div>
+          </div>
+
+          <div id="info-panel" class="sub-panel" style="display: ${this._activePanel === 'info-panel' ? 'block' : 'none'};">
+             <div class="divider"></div>
+             <div class="section-title">CHARGER INFO</div>
+             <div class="control-row">
+                <span class="control-label">Total Charged</span>
+                <span class="val-txt">-- kWh</span>
+             </div>
+             <div id="l1-line" class="phase-line">L1: 0W, 0V, 0A</div>
+             <div id="l2-line" class="phase-line">L2: 0W, 0V, 0A</div>
+             <div id="l3-line" class="phase-line">L3: 0W, 0V, 0A</div>
+          </div>
+
+          <div id="charge-settings-panel" class="sub-panel" style="display: ${this._activePanel === 'charge-settings-panel' ? 'block' : 'none'};">
+             <div class="divider"></div>
+             <div class="section-title">BATTERY & LIMITS</div>
+             <div class="control-row">
+                <span class="control-label">Target SoC</span>
+                <div class="right-controls">
+                   <input type="range" min="0" max="100">
+                   <span class="val-txt">--%</span>
+                </div>
+             </div>
+          </div>
+    
           <div class="slider-row">
             <span class="slider-label">Max Current</span> 
             <input type="range" min="6" max="32" .value=${this._currentAmps.toString()} @input=${this._handleSliderInput} @change=${this._handleSliderChange}>
