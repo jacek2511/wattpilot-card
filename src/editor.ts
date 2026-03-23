@@ -24,6 +24,24 @@ export class WattpilotCardEditor extends LitElement {
     return this._config?.[slot]?.[key] || '';
   }
 
+  // Funkcja czyszcząca pole (usuwa klucz z YAML)
+  private _clearValue(key: string, field: string = 'entity'): void {
+    const newConfig = JSON.parse(JSON.stringify(this._config));
+    if (field === 'entity') {
+      delete newConfig[key];
+    } else {
+      if (newConfig[key] && typeof newConfig[key] === 'object') {
+        delete newConfig[key][field];
+        // Jeśli został tylko klucz entity, konwertuj z powrotem na string
+        if (Object.keys(newConfig[key]).length === 1 && newConfig[key].entity) {
+           newConfig[key] = newConfig[key].entity;
+        }
+      }
+    }
+    this._config = newConfig;
+    this._dispatch(newConfig);
+  }
+
   private _handleValueChanged(ev: CustomEvent, key: string, field: string = 'entity'): void {
     if (!this._config || !this.hass) return;
     const newValue = ev.detail.value;
@@ -44,15 +62,7 @@ export class WattpilotCardEditor extends LitElement {
         const currentEntity = typeof newConfig[key] === 'string' ? newConfig[key] : '';
         newConfig[key] = { entity: currentEntity };
       }
-      if (newValue === "" || newValue === undefined || newValue === null) {
-        delete newConfig[key][field];
-      } else {
-        newConfig[key][field] = newValue;
-      }
-      const isBase = key.startsWith('entity_') || key.startsWith('left') || key.startsWith('right');
-      if (Object.keys(newConfig[key]).length === 1 && newConfig[key].entity && isBase && !newConfig[key].color_rules) {
-        newConfig[key] = newConfig[key].entity;
-      }
+      newConfig[key][field] = newValue;
     }
     this._config = newConfig;
     this._dispatch(newConfig);
@@ -72,33 +82,30 @@ export class WattpilotCardEditor extends LitElement {
     this._dispatch(newConfig);
   }
 
-  private _updateColorRules(slot: string, index: number, field: 'value' | 'color', value: any) {
+  // --- OBSŁUGA COLOR RULES ---
+  private _addColorRule(slot: string) {
     const newConfig = JSON.parse(JSON.stringify(this._config));
-    if (!newConfig[slot] || typeof newConfig[slot] !== 'object') {
-        newConfig[slot] = { entity: newConfig[slot] || "" };
+    if (typeof newConfig[slot] !== 'object') {
+      newConfig[slot] = { entity: newConfig[slot] || "" };
     }
     if (!newConfig[slot].color_rules) newConfig[slot].color_rules = [];
-    
-    // Jeśli edytujemy ostatnią pustą regułę, dodajemy ją na stałe
-    const val = field === 'value' ? (value === "" ? 0 : parseFloat(value)) : value;
+    newConfig[slot].color_rules.push({ value: 0, color: "#9ca3af" });
+    this._config = newConfig;
+    this._dispatch(newConfig);
+  }
+
+  private _updateColorRule(slot: string, index: number, field: 'value' | 'color', value: any) {
+    const newConfig = JSON.parse(JSON.stringify(this._config));
+    const val = field === 'value' ? parseFloat(value) : value;
     newConfig[slot].color_rules[index][field] = val;
-
-    // Automatyczne dodawanie nowej pustej reguły, jeśli ostatnia została zmieniona
-    const lastRule = newConfig[slot].color_rules[newConfig[slot].color_rules.length - 1];
-    if (lastRule.value !== undefined && lastRule.color !== "#ffffff") {
-        newConfig[slot].color_rules.push({ value: undefined, color: "#ffffff" });
-    }
-
     this._config = newConfig;
     this._dispatch(newConfig);
   }
 
   private _removeColorRule(slot: string, index: number) {
     const newConfig = JSON.parse(JSON.stringify(this._config));
-    if (newConfig[slot]?.color_rules) {
-      newConfig[slot].color_rules.splice(index, 1);
-      if (newConfig[slot].color_rules.length === 0) delete newConfig[slot].color_rules;
-    }
+    newConfig[slot].color_rules.splice(index, 1);
+    if (newConfig[slot].color_rules.length === 0) delete newConfig[slot].color_rules;
     this._config = newConfig;
     this._dispatch(newConfig);
   }
@@ -124,7 +131,7 @@ export class WattpilotCardEditor extends LitElement {
             .label=${label}
             @value-changed=${(ev: any) => this._handleValueChanged(ev, key, 'entity')}
           ></ha-selector>
-          <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._handleValueChanged({detail: {value: ""}} as any, key, 'entity')}></ha-icon-button>
+          <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._clearValue(key, 'entity')} title="Clear Entity"></ha-icon-button>
           
           ${hasExtraAttributes ? html`
             <div class="checkbox-container" title="Use Attribute">
@@ -143,7 +150,7 @@ export class WattpilotCardEditor extends LitElement {
                 .label="Attribute for ${label}"
                 @value-changed=${(ev: any) => this._handleValueChanged(ev, key, 'attribute')}
               ></ha-selector>
-              <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._handleValueChanged({detail: {value: ""}} as any, key, 'attribute')}></ha-icon-button>
+              <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._clearValue(key, 'attribute')} title="Clear Attribute"></ha-icon-button>
             </div>
           </div>
         ` : ''}
@@ -152,11 +159,7 @@ export class WattpilotCardEditor extends LitElement {
   }
 
   private renderSideSlot(slot: string, label: string): TemplateResult {
-    const rules = [...(this._config[slot]?.color_rules || [])];
-    // Zawsze wyświetlaj jedną pustą regułę na końcu, jeśli ostatnia nie jest pusta
-    if (rules.length === 0 || (rules[rules.length-1].value !== undefined)) {
-        rules.push({ value: undefined, color: "#ffffff" });
-    }
+    const colorRules = this._config[slot]?.color_rules || [];
 
     return html`
       <div class="side-entity-box">
@@ -165,23 +168,24 @@ export class WattpilotCardEditor extends LitElement {
         <div class="side-tools-grid">
             <div class="selector-container">
                 <ha-selector .hass=${this.hass} .selector=${{ icon: {} }} .value=${this._getOtherValue(slot, 'icon')} .label="${label} Icon" @value-changed=${(ev: any) => this._handleValueChanged(ev, slot, 'icon')}></ha-selector>
-                <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._handleValueChanged({detail: {value: ""}} as any, slot, 'icon')}></ha-icon-button>
+                <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._clearValue(slot, 'icon')}></ha-icon-button>
             </div>
             <div class="selector-container">
                 <ha-selector .hass=${this.hass} .selector=${{ text: {} }} .value=${this._getOtherValue(slot, 'unit')} .label="${label} Unit" @value-changed=${(ev: any) => this._handleValueChanged(ev, slot, 'unit')}></ha-selector>
-                <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._handleValueChanged({detail: {value: ""}} as any, slot, 'unit')}></ha-icon-button>
+                <ha-icon-button class="clear-btn" icon="hass:close" @click=${() => this._clearValue(slot, 'unit')}></ha-icon-button>
             </div>
         </div>
         
         <div class="rules-section">
-          <div class="rules-header">Color Rules (Thresholds)</div>
-          ${rules.map((rule: any, idx: number) => html`
+          <div class="rules-header">
+            <span>Color Rules (Thresholds)</span>
+            <ha-icon-button icon="hass:plus" @click=${() => this._addColorRule(slot)} title="Add Rule"></ha-icon-button>
+          </div>
+          ${colorRules.map((rule: any, idx: number) => html`
             <div class="rule-row">
-              <ha-selector .hass=${this.hass} .selector=${{ number: { mode: "box", step: 0.1 } }} .value=${rule.value} label="Value" @value-changed=${(ev: any) => this._updateColorRules(slot, idx, 'value', ev.detail.value)}></ha-selector>
-              <ha-selector .hass=${this.hass} .selector=${{ ui_color: {} }} .value=${rule.color} label="Color" @value-changed=${(ev: any) => this._updateColorRules(slot, idx, 'color', ev.detail.value)}></ha-selector>
-              ${rule.value !== undefined ? html`
-                <ha-icon-button class="delete-btn" icon="hass:delete-outline" @click=${() => this._removeColorRule(slot, idx)}></ha-icon-button>
-              ` : html`<div style="width: 48px"></div>`}
+              <ha-selector .hass=${this.hass} .selector=${{ number: { mode: "box", step: 0.1 } }} .value=${rule.value} label="Value" @value-changed=${(ev: any) => this._updateColorRule(slot, idx, 'value', ev.detail.value)}></ha-selector>
+              <ha-selector .hass=${this.hass} .selector=${{ ui_color: {} }} .value=${rule.color} label="Color" @value-changed=${(ev: any) => this._updateColorRule(slot, idx, 'color', ev.detail.value)}></ha-selector>
+              <ha-icon-button class="delete-btn" icon="hass:delete-outline" @click=${() => this._removeColorRule(slot, idx)}></ha-icon-button>
             </div>
           `)}
         </div>
@@ -204,16 +208,22 @@ export class WattpilotCardEditor extends LitElement {
     return html`
       <div class="card-config">
         ${groups.map(group => html`
-          <ha-expansion-panel outlined header=${group.label}>
-            <ha-icon slot="header" .icon=${group.icon} class="header-icon"></ha-icon>
+          <ha-expansion-panel outlined>
+            <div slot="header" class="header-content">
+                <ha-icon .icon=${group.icon} class="header-icon"></ha-icon>
+                <span>${group.label}</span>
+            </div>
             <div class="fields-container">
               ${group.fields.map(f => this.renderEntityRow(f.key, f.label))}
             </div>
           </ha-expansion-panel>
         `)}
 
-        <ha-expansion-panel outlined header="Customize View">
-          <ha-icon slot="header" icon="hass:palette-outline" class="header-icon"></ha-icon>
+        <ha-expansion-panel outlined>
+          <div slot="header" class="header-content">
+            <ha-icon icon="hass:palette-outline" class="header-icon"></ha-icon>
+            <span>Customize View</span>
+          </div>
           <div class="fields-container-nested">
             <ha-expansion-panel outlined header="Left Side Column">
               <div class="fields-container">
@@ -234,7 +244,10 @@ export class WattpilotCardEditor extends LitElement {
   static styles = css`
     .card-config { display: flex; flex-direction: column; gap: 8px; }
     ha-expansion-panel { border-radius: 8px; --ha-card-border-radius: 8px; }
-    .header-icon { color: var(--primary-color); margin-right: 8px; }
+    
+    .header-content { display: flex; align-items: center; gap: 12px; font-weight: 500; }
+    .header-icon { color: var(--primary-color); }
+    
     .fields-container { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--card-background-color); }
     .fields-container-nested { display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--secondary-background-color); }
     
@@ -252,7 +265,9 @@ export class WattpilotCardEditor extends LitElement {
     .side-tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
     
     .rules-section { margin-top: 12px; background: var(--secondary-background-color); padding: 12px; border-radius: 8px; }
-    .rules-header { font-size: 0.8rem; font-weight: 500; color: var(--secondary-text-color); margin-bottom: 8px; }
+    .rules-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: 500; color: var(--secondary-text-color); }
+    .rules-header ha-icon-button { color: var(--primary-color); }
+    
     .rule-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 8px; align-items: center; }
     .delete-btn { color: var(--error-color); }
   `;
