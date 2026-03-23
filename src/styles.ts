@@ -74,4 +74,35 @@ export const cardStyles = css`
   .slider-label { font-size: 14px; color: #ccc; min-width: 90px; }
   input[type=range] { flex: 1; accent-color: #03a9f4; }
   .amp-box { font-weight: bold; font-size: 14px; min-width: 35px; text-align: right; }
+
+  .sub-panel {
+    background: #262626;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+    font-size: 12px;
+  }
+  .section-title {
+    color: #03a9f4;
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  .control-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    color: #ccc;
+  }
+  .divider {
+    height: 1px;
+    background: #333;
+    margin: 12px 0;
+  }
+  .active-icon {
+    color: #03a9f4 !important;
+  }
+  .phase-line { font-size: 11px; margin-bottom: 4px; font-family: monospace; white-space: nowrap; color: #888;}
 `;
