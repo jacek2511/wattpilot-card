@@ -240,6 +240,8 @@ export class WattpilotCard extends LitElement {
     if (!this.hass || !this.config) return html``;
 
     const status = this._getState('entity_status') || '--';
+    const isCharging = status.includes('charging');
+    const reason = this._getState('entity_reason');
     const mode = this._getState('entity_mode');
     const soc = this._formatValue(this._getState('entity_soc'));
     const socTarget = this._formatValue(this._getState('entity_target_soc') || '100');
