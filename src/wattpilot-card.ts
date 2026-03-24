@@ -373,7 +373,7 @@ export class WattpilotCard extends LitElement {
           </div>
           
           ${timeLeftStr ? html`
-              <div style="text-align: center; font-size: 0.85em; margin-top: 4px; color: var(--secondary-text-color); font-weight: 500;">
+              <div style="text-align: center; font-size: 0.75em; margin-top: 0px; color: var(--secondary-text-color); font-weight: 400;">
                   ${timeLeftStr}
               </div>
           ` : ''}
