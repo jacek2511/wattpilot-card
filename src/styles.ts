@@ -34,25 +34,12 @@ export const cardStyles = css`
   .data-row.right { justify-content: flex-end; text-align: right; }
   .data-row ha-icon { --mdc-icon-size: 16px; color: #03a9f4; }
 
-  .led-wrapper { position: relative; width: 100px; height: 100px; display: flex; justify-content: center; align-items: center; }
   .device-img { width: 70px; z-index: 2; position: relative; }
-  #led-ring { position: absolute; width: 100%; height: 100%; top: 28px; left: 0; z-index: 3; pointer-events: none; }
   
-  /* Zmodyfikowany blok LED pod framework Lit */
-  .led { position: absolute; top: 50%; left: 50%; width: 3px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 50%; margin: -1.5px; }
-  .led.blue { background: #03a9f4; box-shadow: 0 0 4px #03a9f4; opacity: 0.3; }
-  .led.green { background: #4caf50; box-shadow: 0 0 4px #4caf50; opacity: 1; }
-  .led.yellow { background: #ffeb3b; box-shadow: 0 0 4px #ffeb3b; opacity: 1; }
-  .led.default-on { opacity: 1; }
-  .led.active-anim { opacity: 1; box-shadow: 0 0 8px #fff; background: #fff; }
-
   .soc-range-row { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-top: 2px; margin-bottom: 4px; }
   .stat-item { display: flex; align-items: center; gap: 4px; }
   .stat-item ha-icon { --mdc-icon-size: 14px; }
-
-  .progress-bar-bg { height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
-  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #f44336, #ffeb3b, #4caf50); transition: width 0.3s ease; }
-  
+ 
   .time-left-text { text-align: center; font-size: 11px; color: #03a9f4; margin-top: 4px; font-weight: 500; }
 
   .power-row-inline { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
@@ -75,34 +62,30 @@ export const cardStyles = css`
   input[type=range] { flex: 1; accent-color: #03a9f4; }
   .amp-box { font-weight: bold; font-size: 14px; min-width: 35px; text-align: right; }
 
-  .sub-panel {
-    background: #262626;
-    border-radius: 8px;
-    padding: 12px;
-    margin-top: 12px;
-    font-size: 12px;
-  }
-  .section-title {
-    color: #03a9f4;
-    font-weight: bold;
-    margin-bottom: 8px;
-    font-size: 11px;
-    letter-spacing: 1px;
-  }
-  .control-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    color: #ccc;
-  }
-  .divider {
-    height: 1px;
-    background: #333;
-    margin: 12px 0;
-  }
-  .active-icon {
-    color: #03a9f4 !important;
-  }
+  .sub-panel { background: #262626; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; }
+  .section-title { color: #03a9f4; font-weight: bold; margin-bottom: 8px; font-size: 11px; letter-spacing: 1px; }
+  .control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: #ccc; }
+  .divider { height: 1px; background: #333; margin: 12px 0; }
+  .active-icon { color: #03a9f4 !important; }
   .phase-line { font-size: 11px; margin-bottom: 4px; font-family: monospace; white-space: nowrap; color: #888;}
+
+  /* Nowy pasek SoC z gradientem i animacją przepływu */
+  .progress-container { height: 12px; background: #222; border-radius: 6px; overflow: hidden; position: relative; border: 1px solid #333; margin-top: 5px; }
+  .progress-bar-bg { height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: linear-gradient(to right, #ff4d4d 0%, #fbff00 50%, #33ff33 100%); background-size: 100% 100%; transition: width 0.5s ease; position: relative }
+  .progress-bar-fill.charging-animation::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%); animation: bar-flow 2s infinite linear; }
+  @keyframes bar-flow { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+  #led-ring { position: absolute; width: 100%; height: 100%; top: 28px; left: 0; z-index: 3; pointer-events: none; }
+  .led-wrapper { position: relative; width: 100px; height: 100px; display: flex; justify-content: center; align-items: center; }
+  .led.default-on { opacity: 1; }
+  .led.active-anim { opacity: 1; box-shadow: 0 0 8px #fff; background: #fff; }
+  .led { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #222; transition: background 0.2s, opacity 0.2s; }
+  .led.blue { background: #4da3ff; box-shadow: 0 0 4px #4da3ff; }
+  .led.green { background: #33ff33; box-shadow: 0 0 4px #33ff33; }
+  .led.yellow { background: #fbff00; box-shadow: 0 0 4px #fbff00; }
+  .led.white { background: #ffffff; box-shadow: 0 0 5px #ffffff; }
+  .led.blue-blink { animation: led-blink 1s infinite; background: #4da3ff; }
+  @keyframes led-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
 `;
