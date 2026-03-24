@@ -26,7 +26,7 @@ export class WattpilotCard extends LitElement {
 
   // Stany wewnątrz komponentu
   @state() private _currentAmps: number = 6;
-  @state() private _: boolean = false;
+  @state() private _isCharging: boolean = false;
   @state() private _activePanel: string = '';
   @state() private _isInteracting: boolean = false;
   @state() private _animIdx: number = 0;
@@ -49,7 +49,7 @@ export class WattpilotCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._mainLoop = window.setInterval(() => {
-      if (this._) {
+      if (this.__isCharging) {
         this._animIdx = (this._animIdx + 1) % 32;
       }
     }, 100);
@@ -68,7 +68,7 @@ export class WattpilotCard extends LitElement {
     
     if (changedProperties.has('hass') && this.hass) {
       const status = (this._getState('entity_status') || '').toLowerCase();
-      this._ = status.includes('charging');
+      this._isCharging = status.includes('charging');
 
       if (!this._isInteracting) {
         const currState = this._getState('entity_current');
