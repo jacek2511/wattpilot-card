@@ -158,19 +158,19 @@ export class WattpilotCard extends LitElement {
       
       const stateObj = this._getEntity(key);
       if (!stateObj) continue;
-
-      // Korzystamy z Twojej funkcji _getState, która obsłuży atrybut lub stan
+  
       const rawValue = this._getState(key);
       const val = this._formatValue(rawValue);
+      const iconColor = this._getIconColor(cfg, rawValue); // Pobieramy kolor ikon
       
       const unit = (typeof cfg === 'object' ? cfg.unit : undefined) || stateObj.attributes.unit_of_measurement || '';
       const icon = (typeof cfg === 'object' ? cfg.icon : undefined) || stateObj.attributes.icon || 'mdi:dots-horizontal';
-
+  
       rows.push(html`
         <div class="data-row ${side}">
           ${side === 'left' 
-            ? html`<ha-icon .icon=${icon}></ha-icon><span>${val}${unit}</span>` 
-            : html`<span>${val}${unit}</span><ha-icon .icon=${icon}></ha-icon>`}
+            ? html`<ha-icon .icon=${icon} style="color: ${iconColor}"></ha-icon><span>${val}${unit}</span>` 
+            : html`<span>${val}${unit}</span><ha-icon .icon=${icon} style="color: ${iconColor}"></ha-icon>`}
         </div>
       `);
     }
@@ -234,6 +234,26 @@ export class WattpilotCard extends LitElement {
         <div class="${ledClass}" style="transform: rotate(${angle}deg) translate(24px); opacity: ${opacity};"></div>
       `;
     });
+  }
+
+  private _getIconColor(cfg: any, rawValue: any): string {
+    if (!cfg || !cfg.color_rules || rawValue === undefined || rawValue === null) {
+      return 'inherit'; // Domyślny kolor jeśli brak reguł
+    }
+  
+    const val = parseFloat(rawValue);
+    if (isNaN(val)) return 'inherit';
+  
+    // Sortujemy reguły od najmniejszej do największej wartości
+    const sortedRules = [...cfg.color_rules].sort((a, b) => a.value - b.value);
+    
+    let selectedColor = 'inherit';
+    for (const rule of sortedRules) {
+      if (val >= rule.value) {
+        selectedColor = rule.color;
+      }
+    }
+    return selectedColor;
   }
   
   protected render(): TemplateResult {
