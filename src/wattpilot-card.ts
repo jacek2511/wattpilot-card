@@ -209,7 +209,7 @@ export class WattpilotCard extends LitElement {
     const soc = this._formatValue(this._getState('entity_soc'));
     const socTarget = this._formatValue(this._getState('entity_target_soc') || '100');
     const range = this._getState('entity_range') || '--';
-    const rangeTarget = this._getState('entity_max_range') || '--';
+    const rangeTarget = this._getState('entity_max_range') !== undefined ? Math.round(parseFloat(this._getState('entity_max_range'))) : '--';
     const power = parseFloat(this._getState('entity_power') || '0').toFixed(1);
     const sessionEnergy = parseFloat(this._getState('entity_session_energy') || '0').toFixed(1);
     
