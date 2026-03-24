@@ -44,9 +44,6 @@ export const cardStyles = css`
  
   .time-left-text { text-align: center; font-size: 11px; color: #03a9f4; margin-top: 4px; font-weight: 500; }
 
-  .main-power { font-size: 32px; font-weight: bold; line-height: 1; }
-  .sub-power { font-size: 14px; color: #777; }
-
   .settings-area { border-top: 1px solid #333; padding-top: 12px; margin-top: 8px; display: flex; flex-direction: column; gap: 12px; }
   .settings-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #555; }
   .header-icons { display: flex; gap: 12px; color: #888; }
@@ -95,11 +92,6 @@ export const cardStyles = css`
     z-index: 1;
   }
   
-  /* Upewnij się, że shimmer jest nad gradientem */
-  .shimmer-layer {
-    z-index: 2;
-  }
-
   /* Nowa klasa dla napisu czasu, która nie przesuwa layoutu */
   .time-left-display {
     position: absolute;
@@ -111,41 +103,64 @@ export const cardStyles = css`
     left: 0;
   }
   
-  .power-row-inline {
-    margin-top: 10px; /* Stały odstęp, niezależny od tego czy jest czas czy nie */
+  .power-row-inline { display: flex; flex-direction: row; justify-content: flex-start; align-items: baseline; gap: 10px; margin-top: 12px; padding-left: 2px; }
+  .main-power { font-size: 28px; font-weight: bold; line-height: 1; color: #ffffff; }
+  .sub-power { font-size: 14px; white-space: nowrap; color: #888888; }
+
+  /* Kontener na kroczące strzałki */
+  .marching-arrows {
+    display: none; /* Domyślnie ukryte */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    opacity: 0.6;
+    z-index: 2;
+  }
+  
+  /* Tworzymy wzór strzałek za pomocą pseudo-elementu */
+  .marching-arrows::before {
+    content: "»  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »";
+    position: absolute;
+    width: 200%; /* Dwa razy szerszy, żeby animacja była płynna */
+    height: 100%;
     display: flex;
-    flex-direction: column;
     align-items: center;
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: bold;
+    color: white;
+    letter-spacing: 15px;
+    white-space: nowrap;
+  }
+  
+  /* Aktywacja animacji tylko podczas ładowania */
+  .charging .marching-arrows {
+    display: block;
+  }
+  
+  .charging .marching-arrows::before {
+    animation: march 2s linear infinite;
+  }
+  
+  /* Definicja ruchu strzałek */
+  @keyframes march {
+    0% { transform: translateX(-50%); }
+    100% { transform: translateX(0%); }
+  }
+  
+  /* Opcjonalnie: sprawmy, by pasek pulsował delikatnie wraz ze strzałkami */
+  .charging .progress-bar-gradient {
+    animation: pulse-border 2s ease-in-out infinite;
+  }
+  
+  @keyframes pulse-border {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.3); }
   }
 
-  /* Warstwa animowana */
-  .shimmer-layer {
-      display: none; /* Domyślnie ukryta */
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(
-          90deg,
-          transparent,
-          rgba(255, 255, 255, 0.4),
-          transparent
-      );
-  }
-  
-  /* Aktywacja animacji gdy jest klasa .charging */
-  .charging .shimmer-layer {
-      display: block;
-      animation: shimmer 1.5s infinite;
-  }
-  
-  /* Definicja ruchu */
-  @keyframes shimmer {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(100%); }
-  }
-    
   /* Style ikon bocznych */
   .data-row ha-icon {
     transition: color 0.3s ease;
