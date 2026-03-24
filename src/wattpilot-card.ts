@@ -228,7 +228,7 @@ export class WattpilotCard extends LitElement {
             }
           }
         }
-        if (!isTail) opacity = "0.1"; // Przyciemnienie reszty
+        if (!isTail) opacity = "0.1";
       } else {
         // 3. Statusy postoju
         if (i < activeAmps) {
@@ -318,6 +318,23 @@ export class WattpilotCard extends LitElement {
     const installedV = updateAttrs.installed_version || '--';
     const latestV = updateAttrs.latest_version || '--';
     const hasError = internalError !== 'None' && internalError !== '--' && internalError !== 'unknown';
+
+    let batteryIcon = 'mdi:battery';
+    let batteryColor = '#4caf50';
+    if (soc <= 10) {
+      batteryIcon = 'mdi:battery-outline';
+      batteryColor = '#f44336';
+    } else if (soc <= 20) {
+      batteryIcon = 'mdi:battery-20';
+      batteryColor = '#ff9800';
+    } else if (soc <= 50) {
+      batteryIcon = 'mdi:battery-50';
+      batteryColor = '#fbff00';
+    } else if (soc <= 80) {
+      batteryIcon = 'mdi:battery-80';
+    } else {
+      batteryIcon = 'mdi:battery-100';
+    }
     
     return html`
       <ha-card>
@@ -364,8 +381,8 @@ export class WattpilotCard extends LitElement {
         </div>
           
         <div class="soc-range-row">
-            <div class="stat-item"><ha-icon icon="mdi:battery-high"></ha-icon> ${soc}/${socTarget}%</div>
-            <div class="stat-item"><ha-icon icon="mdi:car-connected"></ha-icon> ${range}/${rangeTarget}km</div>
+            <div class="stat-item" style="color: ${batteryColor}"><ha-icon .icon="${batteryIcon}"></ha-icon> ${soc}/${socTarget}%</div>
+            <div class="stat-item"><ha-icon .icon="mdi:road-variant"></ha-icon> ${range}/${rangeTarget}km</div>
         </div>
 
         <div class="charging-progress-area ${this._isCharging ? 'charging' : ''}">
