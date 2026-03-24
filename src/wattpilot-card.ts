@@ -193,51 +193,84 @@ export class WattpilotCard extends LitElement {
     const status = (this._getState('entity_status') || '').toLowerCase();
     const reason = this._getState('entity_reason');
     const mode = this._getState('entity_mode');
-    const activeAmps = Math.min(32, this._currentAmps);
     
-    // Pobieramy fazy z Twoich obliczeń (L1+L2+L3)
+    // Upewniamy się, że prąd jest liczbą całkowitą do indeksowania diod
+    const activeAmps = Math.min(32, Math.round(this._currentAmps)); 
+
+    // Pobieramy fazy
     const powerEnt = this._getEntity('entity_power');
     const attr = powerEnt?.attributes || {};
     const activePhases = [attr.L1_Ampere, attr.L2_Ampere, attr.L3_Ampere].filter(a => parseFloat(a) > 0).length;
 
+    // Powody, dla których WSZYSTKIE diody mają świecić na zielono
+    const greenCompleteReasons = [
+      'ChargingBecausePvSurplus', 
+      'ChargingBecauseForceStateOn', 
+      'ChargingBecauseFallbackDefault'
+    ];
+
     return Array.from({ length: 32 }).map((_, i) => {
-      const angle = (i / 32) * 360 - 90;
+      const angle = (i / 32) * 360 - 90; // Pozycja 0 jest na godzinie 12
       let ledClass = 'led';
-      let opacity = "1";
+      let opacity = "0.1"; // Domyślne wygaszenie tła
 
-      // 1. Tryby specjalne (Eco/Next Trip) gdy nie ładuje
-      if (!this._isCharging) {
-        if (i === 0 && mode === 'Eco') ledClass += ' white';
-        if (i === 1 && mode === 'Next Trip') ledClass += ' white';
-      }
-
-      // 2. Logika podczas ładowania (Animacja "Ogona")
-      if (this._isCharging) {
+      if (this._isCharging || status === 'charging') {
+        // --- LOGIKA PODCZAS ŁADOWANIA ---
         const tailLength = 4;
-        const phaseOffsets = activePhases === 3 ? [0, 10, 20] : [0];
+        // Rozstawienie "węży" dla 3 faz (najlepiej co ok. 10/11 diod)
+        const phaseOffsets = activePhases === 3 ? [0, 11, 22] : [0]; 
         let isTail = false;
 
         for (const offset of phaseOffsets) {
           const head = (this._animIdx + offset) % 32;
           for (let t = 0; t < tailLength; t++) {
             const tailPos = (head - t + 32) % 32;
+            
+            // Animacja toczy się tylko do limitu ustawionego prądu (activeAmps)
             if (tailPos === i && i < activeAmps) {
               isTail = true;
               ledClass += ' blue';
-              if (t > 0) opacity = (0.8 - (t / tailLength) * 0.7).toString();
+              // Głowa "węża" najjaśniejsza, ogon gaśnie
+              opacity = t === 0 ? "1" : (0.8 - (t / tailLength) * 0.7).toString();
             }
           }
         }
         if (!isTail) opacity = "0.1";
+
       } else {
-        // 3. Statusy postoju
-        if (i < activeAmps) {
-          if (reason === 'NotChargingBecauseFallbackAwattar') ledClass += ' blue-blink';
-          else if (status.includes('wait')) ledClass += ' yellow';
-          else if (status.includes('complete')) ledClass += ' green';
-          else ledClass += ' blue';
-        } else {
-          opacity = "0.1";
+        // --- LOGIKA PODCZAS POSTOJU (Idle / Complete / Wait) ---
+        
+        const isGreenComplete = status.includes('complete') && greenCompleteReasons.includes(reason);
+        const isBlueBlink = status.includes('complete') && reason === 'NotChargingBecauseFallbackAwattar';
+        const isWaitCar = status.includes('wait');
+        
+        if (isGreenComplete) {
+          // Priorytet 1: Pełne zakończenie (zielone) - WSZYSTKIE diody (niezależnie od activeAmps)
+          ledClass += ' green';
+          opacity = "1";
+        } else if (i < activeAmps) {
+          // Pozostałe statusy operują tylko w zakresie ustawionego prądu (activeAmps)
+          if (isBlueBlink) {
+            ledClass += ' blue-blink';
+            opacity = "1";
+          } else if (isWaitCar) {
+            ledClass += ' yellow';
+            opacity = "1";
+          } else {
+            // "idle" oraz zmiana prądu (domyślny fallback) - świecą na niebiesko
+            ledClass += ' blue';
+            opacity = "1";
+          }
+        }
+
+        // --- PRIORYTETY TRYBÓW (Nadpisują kolory dla diody 1 i 2) ---
+        if (i === 0 && mode === 'Eco') {
+          ledClass = 'led white'; // Czysta klasa 'led white', pozbywamy się ew. zielonego/niebieskiego
+          opacity = "1";
+        }
+        if (i === 1 && mode === 'Next Trip') {
+          ledClass = 'led white';
+          opacity = "1";
         }
       }
 
@@ -246,7 +279,7 @@ export class WattpilotCard extends LitElement {
       `;
     });
   }
-
+  
   protected render(): TemplateResult {
     if (!this.hass || !this.config) return html``;
 
@@ -345,17 +378,16 @@ export class WattpilotCard extends LitElement {
 
         <div class="top-controls-grid">
           <div class="modes-grid">
-            <div class="mode-btn ${mode === 'Default' ? 'active' : ''}" @click=${() => this._setMode('Default')}>
+            <div class="mode-btn standard ${mode === 'Default' ? 'active' : ''}" @click=${() => this._setMode('Default')}>
               <ha-icon icon="mdi:flash"></ha-icon><span>Standard</span>
             </div>
-            <div class="mode-btn ${mode === 'Eco' ? 'active' : ''}" @click=${() => this._setMode('Eco')}>
+            <div class="mode-btn eco ${mode === 'Eco' ? 'active' : ''}" @click=${() => this._setMode('Eco')}>
               <ha-icon icon="mdi:leaf"></ha-icon><span>Eco</span>
             </div>
-            <div class="mode-btn ${mode === 'Next Trip' ? 'active' : ''}" @click=${() => this._setMode('Next Trip')}>
+            <div class="mode-btn next-trip ${mode === 'Next Trip' ? 'active' : ''}" @click=${() => this._setMode('Next Trip')}>
               <ha-icon icon="mdi:map-marker-distance"></ha-icon><span>Next Trip</span>
             </div>
-          </div>
-          
+          </div>          
           <div class="actions-grid">
             ${this._isCharging 
               ? html`
@@ -381,8 +413,8 @@ export class WattpilotCard extends LitElement {
         </div>
           
         <div class="soc-range-row">
-            <div class="stat-item" style="color: ${batteryColor}"><ha-icon .icon="${batteryIcon}"></ha-icon> ${soc}/${socTarget}%</div>
-            <div class="stat-item"><ha-icon .icon="mdi:road-variant"></ha-icon> ${range}/${rangeTarget}km</div>
+            <div class="stat-item" style="color: ${batteryColor}"><ha-icon .icon="${batteryIcon}"></ha-icon> ${soc}/${socTarget} %</div>
+            <div class="stat-item"><ha-icon icon="mdi:road-variant"></ha-icon> ${range}/${rangeTarget} km</div>
         </div>
 
         <div class="charging-progress-area ${this._isCharging ? 'charging' : ''}">
