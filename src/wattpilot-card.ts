@@ -314,14 +314,14 @@ export class WattpilotCard extends LitElement {
             <span>Phases</span>
             <div class="chips">
               <div class="chip ${phases === 'Auto' ? 'active' : ''}" @click=${() => this._setPhases('Auto')}>Auto</div>
-              <div class="chip ${phases === '1' ? 'active' : ''}" @click=${() => this._setPhases('1')}>1</div>
-              <div class="chip ${phases === '3' ? 'active' : ''}" @click=${() => this._setPhases('3')}>3</div>
+              <div class="chip ${phases === '1 Phase' ? 'active' : ''}" @click=${() => this._setPhases('1 Phase')}>1</div>
+              <div class="chip ${phases === '3 Phases' ? 'active' : ''}" @click=${() => this._setPhases('3 Phases')}>3</div>
             </div>
           </div>
           
           <div class="slider-row">
             <span class="slider-label">Max Current</span>
-            <input type="range" min="6" max="16" step="1" 
+            <input type="range" min="6" max="32" step="1" 
                    .value=${this._currentAmps.toString()}
                    @input=${this._handleSliderInput}
                    @change=${this._handleSliderChange}>
@@ -403,20 +403,114 @@ export class WattpilotCard extends LitElement {
             </div>
           </div>
 
-          <div id="charge-settings-panel" class="sub-panel" style="display: ${this._activePanel === 'charge-settings-panel' ? 'block' : 'none'};">
+<div id="charge-settings-panel" class="sub-panel" style="display: ${this._activePanel === 'charge-settings-panel' ? 'block' : 'none'};">
              <div class="divider"></div>
              <div class="section-title">BATTERY & LIMITS</div>
+             
              <div class="control-row">
                 <span class="control-label">Target SoC</span>
                 <div class="right-controls">
                    <input type="range" min="0" max="100"
                      .value=${this._getState('entity_target_soc') || 0}
-                     @change=${(e: any) => this._callService('input_number', 'set_value', 'entity_target_soc', { value: e.target.value })}>
+                     @change=${(e: any) => this._callService('input_number', 'set_value', 'entity_target_soc', { value: parseFloat(e.target.value) })}>
                    <span class="val-txt">${this._getState('entity_target_soc') || '--'}%</span>
                 </div>
              </div>
-          </div>
-    
+             
+             <div class="control-row">
+                <span class="control-label">Min SoC</span>
+                <div class="right-controls">
+                   <input type="range" min="0" max="100"
+                     .value=${this._getState('entity_min_soc') || 0}
+                     @change=${(e: any) => this._callService('input_number', 'set_value', 'entity_min_soc', { value: parseFloat(e.target.value) })}>
+                   <span class="val-txt">${this._getState('entity_min_soc') || '--'}%</span>
+                </div>
+             </div>
+
+             <div class="divider"></div>
+
+             <div class="control-row">
+                <span class="control-label">Enable Boost</span>
+                <ha-switch 
+                  .checked=${this._getState('entity_boost') === 'on'}
+                  @change=${(e: any) => this._callService('switch', e.target.checked ? 'turn_on' : 'turn_off', 'entity_boost')}>
+                </ha-switch>
+             </div>
+             
+             <div class="control-row">
+                <span class="control-label">Boost Type</span>
+                <select class="custom-select" 
+                  .value=${this._getState('entity_boost_type') || ''}
+                  @change=${(e: any) => this._callService('select', 'select_option', 'entity_boost_type', { option: e.target.value })}>
+                  ${this._getEntity('entity_boost_type')?.attributes?.options?.map((opt: string) => html`<option value="${opt}">${opt}</option>`) || html`<option value="">--</option>`}
+                </select>
+             </div>
+
+             <div class="divider"></div>
+
+             <div class="control-row">
+                <span class="control-label">PV Surplus Only</span>
+                <ha-switch 
+                  .checked=${this._getState('entity_pv_surplus') === 'on'}
+                  @change=${(e: any) => this._callService('switch', e.target.checked ? 'turn_on' : 'turn_off', 'entity_pv_surplus')}>
+                </ha-switch>
+             </div>
+
+             <div class="control-row">
+                <span class="control-label">Start Charging At</span>
+                <div class="right-controls">
+                   <input type="number" step="0.1" class="custom-input" style="width: 70px; text-align: right;"
+                     .value=${this._getState('entity_start_at') || 0}
+                     @change=${(e: any) => this._callService('number', 'set_value', 'entity_start_at', { value: parseFloat(e.target.value) })}>
+                   <span class="val-txt" style="margin-left: 5px;">kW</span>
+                </div>
+             </div>
+
+             <div class="control-row">
+                <span class="control-label">Use aWATTar</span>
+                <ha-switch 
+                  .checked=${this._getState('entity_awattar') === 'on'}
+                  @change=${(e: any) => this._callService('switch', e.target.checked ? 'turn_on' : 'turn_off', 'entity_awattar')}>
+                </ha-switch>
+             </div>
+
+             <div class="control-row">
+                <span class="control-label">Max Price</span>
+                <div class="right-controls">
+                   <input type="number" step="0.01" class="custom-input" style="width: 70px; text-align: right;"
+                     .value=${this._getState('entity_max_price') || 0}
+                     @change=${(e: any) => this._callService('number', 'set_value', 'entity_max_price', { value: parseFloat(e.target.value) })}>
+                   <span class="val-txt" style="margin-left: 5px;">€</span>
+                </div>
+             </div>
+
+             <div class="divider"></div>
+
+             <div class="control-row">
+                <span class="control-label">Next Trip Power</span>
+                <div class="right-controls">
+                   <input type="number" step="0.1" class="custom-input" style="width: 70px; text-align: right;"
+                     .value=${this._getState('entity_next_trip_pwr') || 0}
+                     @change=${(e: any) => this._callService('number', 'set_value', 'entity_next_trip_pwr', { value: parseFloat(e.target.value) })}>
+                   <span class="val-txt" style="margin-left: 5px;">kW</span>
+                </div>
+             </div>
+
+             <div class="control-row">
+                <span class="control-label">Next Trip Time</span>
+                <input type="time" class="custom-input" 
+                  .value=${(this._getState('entity_next_trip_timing') || '00:00:00').substring(0,5)}
+                  @change=${(e: any) => this._callService('input_datetime', 'set_datetime', 'entity_next_trip_timing', { time: e.target.value })}>
+             </div>
+
+             <div class="control-row">
+                <span class="control-label">Remain in Eco Mode</span>
+                <ha-switch 
+                  .checked=${this._getState('entity_eco_persist') === 'on'}
+                  @change=${(e: any) => this._callService('switch', e.target.checked ? 'turn_on' : 'turn_off', 'entity_eco_persist')}>
+                </ha-switch>
+             </div>
+          </div>    
         </div>
       </ha-card>
     `;
