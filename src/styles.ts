@@ -4,14 +4,14 @@ export const cardStyles = css`
   :host { display: block; }
   ha-card { padding: 4px 12px 12px 12px; background: #1c1c1c; color: white; overflow: hidden; }
   .card-header { display: flex; justify-content: space-between; margin-top: -12px; margin-bottom: -2px; height: 32px; align-items: center;  }
-  .reason-badge { border: 1px solid #333; padding: 1px 8px; border-radius: 12px; color: #888; font-size: 10px; }
+  .reason-badge { border: 1px solid #333; padding: 1px 8px; border-radius: 12px; color: #bbb; font-size: 11px; }
   .status-badge { border: 1px solid #03a9f4; color: #03a9f4; padding: 1px 8px; border-radius: 12px; font-weight: bold; font-size: 10px; }
   
   /* Dodatkowa klasa dla statusu ładującego */
   .status-badge.charging-status { border-color: #4caf50; color: #4caf50; background: rgba(76, 175, 80, 0.1); }
 
   .top-controls-grid { display: flex; gap: 8px; margin-top: -10px; margin-bottom: 8px; }
-  .modes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; flex: 1; }
+  .modes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 1; }
   .actions-grid { display: flex; flex-direction: column; gap: 4px; width: 80px; }
 
   /* --- BAZA PRZYCISKU --- */
@@ -62,12 +62,12 @@ export const cardStyles = css`
   .header-icons ha-icon { cursor: pointer; transition: color 0.2s; }
   .header-icons ha-icon:hover { color: #fff; }
   
-  .phases-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px;}
+  .phases-row { margin-bottom: 8px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 12px;}
   .chips { display: flex; gap: 8px; }
-  .chip { background: #333; padding: 4px 12px; border-radius: 12px; font-size: 11px; cursor: pointer; transition: background 0.2s; }
+  .chip { background: #333; padding: 5px 12px; border-radius: 16px; font-size: 12px; cursor: pointer; transition: background 0.2s; }
   .chip.active { background: #03a9f4; font-weight: bold; color: white;}
   
-  .slider-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+  .slider-row {  margin-bottom: 8px; display: flex; align-items: center; gap: 8px; width: 100%; }
   .slider-label { font-size: 14px; color: #ccc; min-width: 90px; }
   select, input { max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; }
   input[type=range] { flex: 1; min-width: 0; }
