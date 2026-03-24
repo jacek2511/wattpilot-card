@@ -70,12 +70,11 @@ export const cardStyles = css`
   .phase-line { font-size: 11px; margin-bottom: 4px; font-family: monospace; white-space: nowrap; color: #888;}
 
   /* Nowy pasek SoC z gradientem i animacją przepływu */
-  .progress-container { height: 12px; background: #222; border-radius: 6px; overflow: hidden; position: relative; border: 1px solid #333; margin-top: 5px; }
-  .progress-bar-bg { height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
-  .progress-bar-fill { height: 100%; background: linear-gradient(to right, #ff4d4d 0%, #fbff00 50%, #33ff33 100%); background-size: 100% 100%; transition: width 0.5s ease; position: relative }
-  .progress-bar-fill.charging-animation::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%); animation: bar-flow 2s infinite linear; }
-  @keyframes bar-flow { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-
+  .progress-container { height: 12px; background: rgba(255, 255, 255, 0.1); border-radius: 6px; overflow: hidden; position: relative; border: 1px solid rgba(255, 255, 255, 0.05); margin: 10px 15px; }
+  .progress-bar-gradient { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to right, #ff4d4d 0%, #fbff00 50%, #33ff33 100% ); transition: clip-path 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+  .progress-bar-gradient.charging::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0) 100% ); background-size: 200% 100%; animation: shimmer 2s infinite linear }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  
   #led-ring { position: absolute; width: 100%; height: 100%; top: 77px; left: 48px; z-index: 3; pointer-events: none; }
   .led-wrapper { position: relative; width: 100px; height: 100px; display: flex; justify-content: center; align-items: center; }
   .led.default-on { opacity: 1; }
