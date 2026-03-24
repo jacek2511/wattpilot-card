@@ -404,6 +404,8 @@ export class WattpilotCard extends LitElement {
                 </div>
              </div>
 
+             <div class="divider"></div>
+
              <div class="control-row">
                 <span class="control-label">3-Phase Power Level</span>
                 <div class="right-controls">
@@ -484,47 +486,81 @@ export class WattpilotCard extends LitElement {
             </div>
           </div>
 
-          <div id="info-panel" class="sub-panel" style="display: ${this._activePanel === 'info-panel' ? 'block' : 'none'};">
-            <div class="divider"></div>
-            <div class="section-title">CHARGER INFO</div>
-            <div class="control-row">
-              <span class="control-label">Total Charged</span>
-              <span class="val-txt">${parseFloat(totalCharged).toFixed(1)} kWh</span>
-            </div>
-            
-            <div class="divider" style="opacity: 0.1;"></div>
-            
-            <div class="phase-line">
-              <span class="phase-label">L1:</span> 
-              ${Math.round(attr.L1_Power || 0)}W, ${attr.L1_Voltage || 0}V, ${attr.L1_Ampere || 0}A
-            </div>
-            <div class="phase-line">
-              <span class="phase-label">L2:</span> 
-              ${Math.round(attr.L2_Power || 0)}W, ${attr.L2_Voltage || 0}V, ${attr.L2_Ampere || 0}A
-            </div>
-            <div class="phase-line">
-              <span class="phase-label">L3:</span> 
-              ${Math.round(attr.L3_Power || 0)}W, ${attr.L3_Voltage || 0}V, ${attr.L3_Ampere || 0}A
-            </div>
-            
-            <div class="divider" style="opacity: 0.1;"></div>
-          
-            <div class="control-row">
-              <span class="control-label">Internal Error</span>
-              <span class="val-txt" style="color: ${hasError ? '#f44336' : 'inherit'}">
-                ${internalError}
-              </span>
-            </div>
-          
-            <div class="control-row">
-              <span class="control-label">Firmware Update</span>
-              <span class="val-txt" style="color: ${firmwareUpdate ? '#4caf50' : 'inherit'}">
-                ${firmwareUpdate ? 'Available' : 'No Update'}
-              </span>
-            </div>
-          </div>
+          <div id="charger-info-panel" class="sub-panel" style="display: ${this._activePanel === 'charger-info-panel' ? 'block' : 'none'};">
+             <div class="divider"></div>
+             <div class="section-title">CHARGER INFO</div>
+             
+             <div class="control-row">
+                <span class="control-label">Total Charged</span>
+                <span class="val-txt">${parseFloat(this._getState('entity_total_charged') || 0).toFixed(1)} kWh</span>
+             </div>
 
-<div id="charge-settings-panel" class="sub-panel" style="display: ${this._activePanel === 'charge-settings-panel' ? 'block' : 'none'};">
+             <div class="divider"></div>
+             
+             <div style="padding: 10px 0; font-family: 'Roboto Mono', monospace; font-size: 0.85em; line-height: 1.8;">
+                <div style="color: #4da3ff;">L1: <span style="color: #eee;">
+                   ${parseFloat(this._getState('entity_l1_pwr') || 0).toFixed(1)}W, 
+                   ${parseFloat(this._getState('entity_l1_vol') || 0).toFixed(1)}V, 
+                   ${parseFloat(this._getState('entity_l1_amp') || 0).toFixed(1)}A, 0.0%</span>
+                </div>
+                <div style="color: #4da3ff;">L2: <span style="color: #eee;">
+                   ${parseFloat(this._getState('entity_l2_pwr') || 0).toFixed(1)}W, 
+                   ${parseFloat(this._getState('entity_l2_vol') || 0).toFixed(1)}V, 
+                   ${parseFloat(this._getState('entity_l2_amp') || 0).toFixed(1)}A, 0.0%</span>
+                </div>
+                <div style="color: #4da3ff;">L3: <span style="color: #eee;">
+                   ${parseFloat(this._getState('entity_l3_pwr') || 0).toFixed(1)}W, 
+                   ${parseFloat(this._getState('entity_l3_vol') || 0).toFixed(1)}V, 
+                   ${parseFloat(this._getState('entity_l3_amp') || 0).toFixed(1)}A, 0.0%</span>
+                </div>
+                <div style="color: #4da3ff;">N:  <span style="color: #eee;">
+                   ${parseFloat(this._getState('entity_n_pwr') || 0).toFixed(1)}W, 
+                   ${parseFloat(this._getState('entity_n_vol') || 0).toFixed(1)}V</span>
+                </div>
+             </div>
+
+             <div class="divider"></div>
+
+             <div class="control-row">
+                <span class="control-label">Internal Error</span>
+                <span class="val-txt">${this._getState('entity_internal_error') || 'None'}</span>
+             </div>
+
+             <div class="control-row">
+                <span class="control-label">Firmware Update</span>
+                <span class="val-txt" style="color: ${this._getState('entity_fw_current') !== this._getState('entity_fw_latest') ? '#4da3ff' : 'inherit'};">
+                   ${this._getState('entity_fw_current') !== this._getState('entity_fw_latest') ? 'Update Available' : 'No Update'}
+                </span>
+             </div>
+
+             <div class="control-row" style="margin-top: -5px; margin-bottom: 15px;">
+                <span class="control-label" style="font-size: 0.75em; opacity: 0.5;">Firmware Version (installed/latest)</span>
+                <span class="val-txt" style="font-size: 0.75em; opacity: 0.7;">
+                   ${this._getState('entity_fw_current') || '--'} / ${this._getState('entity_fw_latest') || '--'}
+                </span>
+             </div>
+
+             ${this._getState('entity_fw_current') !== this._getState('entity_fw_latest') ? html`
+                <button @click=${() => {
+                    if(confirm('Czy na pewno chcesz rozpocząć aktualizację oprogramowania Wattpilota?')) {
+                        this._callAction('entity_start_update');
+                    }
+                }} 
+                style="width:100%; padding:10px; border-radius:6px; border:1px solid #4da3ff; background: rgba(77, 163, 255, 0.1); color:#4da3ff; cursor:pointer; font-weight:bold; margin-bottom: 10px;">
+                   INSTALL UPDATE
+                </button>
+                
+                ${this._getState('entity_update_progress') > 0 ? html`
+                   <div style="width: 100%; background: #333; height: 10px; border-radius: 5px; overflow: hidden; margin-top: 5px;">
+                      <div style="width: ${this._getState('entity_update_progress')}%; background: #4da3ff; height: 100%; transition: width 0.5s ease-in-out;"></div>
+                   </div>
+                   <div style="text-align: center; font-size: 0.7em; margin-top: 5px; color: #4da3ff;">Update Progress: ${this._getState('entity_update_progress')}%</div>
+                ` : ''}
+             ` : ''}
+
+          </div>
+          
+          <div id="charge-settings-panel" class="sub-panel" style="display: ${this._activePanel === 'charge-settings-panel' ? 'block' : 'none'};">
              <div class="divider"></div>
              <div class="section-title">BATTERY & LIMITS</div>
              
