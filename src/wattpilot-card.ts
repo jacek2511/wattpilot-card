@@ -80,16 +80,30 @@ export class WattpilotCard extends LitElement {
   }
 
   // --- FUNKCJE POMOCNICZE DLA DANYCH Z HA ---
-
+  // Pobiera obiekt stanu (Hass Entity) niezależnie od formatu w YAML
   private _getEntity(key: string) {
     if (!this.config || !this.config[key]) return undefined;
-    const eid = typeof this.config[key] === 'object' ? this.config[key].entity : this.config[key];
-    return this.hass ? this.hass.states[eid] : undefined;
+    
+    // Obsługa obu formatów: "sensor.name" LUB { entity: "sensor.name" }
+    const conf = this.config[key];
+    const eid = typeof conf === 'object' ? conf.entity : conf;
+    
+    return this.hass && eid ? this.hass.states[eid] : undefined;
   }
 
+  // Pobiera wartość (stan LUB atrybut) w sposób uniwersalny
   private _getState(key: string) {
+    const conf = this.config[key];
     const stateObj = this._getEntity(key);
-    return stateObj ? stateObj.state : '--';
+    
+    if (!stateObj) return undefined;
+
+    // Jeśli w YAML zdefiniowano 'attribute', pobierz go. W przeciwnym razie weź 'state'.
+    if (typeof conf === 'object' && conf.attribute) {
+      return stateObj.attributes[conf.attribute];
+    }
+    
+    return stateObj.state;
   }
   
   private _getEntityState(configKey: string): string {
@@ -131,9 +145,14 @@ export class WattpilotCard extends LitElement {
     this._callService('button', 'press', { entity_id: eid });
   }
   
-  private _callService(domain: string, service: string, entityId: string) {
-    if (!entityId) return;
-    this.hass.callService(domain, service, { entity_id: entityId });
+  private _callService(domain: string, service: string, configKey: string, extraData = {}) {
+    const stateObj = this._getEntity(configKey);
+    if (!stateObj) return;
+
+    this.hass.callService(domain, service, {
+      entity_id: stateObj.entity_id,
+      ...extraData
+    });
   }
   
   private _handleSliderInput(e: Event) {
