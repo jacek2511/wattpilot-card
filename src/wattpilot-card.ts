@@ -116,21 +116,26 @@ export class WattpilotCard extends LitElement {
   private _setMode(mode: string) {
     if (!this.config || !this.config.entity_mode) return;
     const eid = typeof this.config.entity_mode === 'object' ? this.config.entity_mode.entity : this.config.entity_mode;
-    this.hass.ervice('select', 'select_option', { entity_id: eid, option: mode });
+    this._callService('select', 'select_option', { entity_id: eid, option: mode });
   }
 
   private _setPhases(phases: string) {
     if (!this.config || !this.config.entity_phase) return;
     const eid = typeof this.config.entity_phase === 'object' ? this.config.entity_phase.entity : this.config.entity_phase;
-    this.hass.ervice('select', 'select_option', { entity_id: eid, option: phases });
+    this._callService('select', 'select_option', { entity_id: eid, option: phases });
   }
 
   private _callAction(actionKey: 'entity_force' | 'entity_start' | 'entity_stop') {
     if (!this.config || !this.config[actionKey]) return;
     const eid = typeof this.config[actionKey] === 'object' ? this.config[actionKey].entity : this.config[actionKey];
-    this.hass.ervice('button', 'press', { entity_id: eid });
+    this._callService('button', 'press', { entity_id: eid });
   }
-
+  
+  private _callService(domain: string, service: string, entityId: string) {
+    if (!entityId) return;
+    this.hass.callService(domain, service, { entity_id: entityId });
+  }
+  
   private _handleSliderInput(e: Event) {
     this._isInteracting = true;
     this._currentAmps = parseInt((e.target as HTMLInputElement).value, 10);
