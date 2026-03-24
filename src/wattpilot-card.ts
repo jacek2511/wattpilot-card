@@ -224,7 +224,7 @@ export class WattpilotCard extends LitElement {
     const powerEnt = this._getEntity('entity_power');
     const attr = powerEnt?.attributes || {};
     const internalError = this._getState('entity_internal_error');
-    const firmwareUpdate = this._getState('entity_firmware_update');
+    const updateEnt = this._getState('entity_firmware_update');
     const hasError = internalError !== 'None' && internalError !== '--' && internalError !== 'unknown';
     
     return html`
@@ -529,33 +529,35 @@ export class WattpilotCard extends LitElement {
                 <span class="val-txt">${this._getState('entity_internal_error') || 'None'}</span>
              </div>
 
-             <div class="control-row">
-                <span class="control-label">Firmware Update</span>
-                <span class="val-txt" style="color: ${firmwareUpdate?.state === 'on' ? '#4da3ff' : 'inherit'};">
-                   ${firmwareUpdate?.state === 'on' ? 'Update Available' : 'Up to date'}
-                </span>
-             </div>
-
-             <div class="control-row" style="margin-top: -5px; margin-bottom: 15px;">
-                <span class="control-label" style="font-size: 0.75em; opacity: 0.5;">Firmware Version (installed/latest)</span>
-                <span class="val-txt" style="font-size: 0.75em; opacity: 0.7;">
-                   ${firmwareUpdate?.attributes?.installed_version || '--'} / ${firmwareUpdate?.attributes?.latest_version || '--'}
-                </span>
-             </div>
-
-             ${firmwareUpdate?.state === 'on' ? html`
-                <button @click=${() => confirm('Start Update?') ? this._callAction('entity_start_update') : null} 
-                        style="width:100%; padding:10px; border-radius:6px; border:1px solid #4da3ff; background: rgba(77, 163, 255, 0.1); color:#4da3ff; cursor:pointer; font-weight:bold; margin-bottom: 10px;">
-                   INSTALL UPDATE
-                </button>
-                
-                ${Number(this._getState('entity_update_progress') || 0) > 0 ? html`
-                   <div style="width: 100%; background: #333; height: 10px; border-radius: 5px; overflow: hidden; margin-top: 5px;">
-                      <div style="width: ${Number(this._getState('entity_update_progress'))}%; background: #4da3ff; height: 100%; transition: width 0.5s;"></div>
-                   </div>
-                   <div style="text-align: center; font-size: 0.7em; margin-top: 5px; color: #4da3ff;">Update: ${this._getState('entity_update_progress')}%</div>
-                ` : ''}
-             ` : ''}
+            <div class="control-row">
+               <span class="control-label">Firmware Update</span>
+               <span class="val-txt" style="color: ${isUpdateAvailable ? '#4da3ff' : 'inherit'};">
+                  ${isUpdateAvailable ? 'Update Available' : 'Up to date'}
+               </span>
+            </div>
+            
+            <div class="control-row" style="margin-top: -5px; margin-bottom: 15px;">
+               <span class="control-label" style="font-size: 0.75em; opacity: 0.5;">Firmware Version (installed/latest)</span>
+               <span class="val-txt" style="font-size: 0.75em; opacity: 0.7;">
+                  ${updateEnt?.attributes?.installed_version || '--'} / ${updateEnt?.attributes?.latest_version || '--'}
+               </span>
+            </div>
+            
+            ${isUpdateAvailable ? html`
+               <button @click=${() => confirm('Start Update?') ? this._callAction('entity_start_update') : null} 
+                       style="width:100%; padding:10px; border-radius:6px; border:1px solid #4da3ff; background: rgba(77, 163, 255, 0.1); color:#4da3ff; cursor:pointer; font-weight:bold; margin-bottom: 10px;">
+                  INSTALL UPDATE
+               </button>
+            ` : ''}
+            
+            ${updateEnt?.attributes?.in_progress ? html`
+               <div style="width: 100%; background: #333; height: 10px; border-radius: 5px; overflow: hidden; margin-top: 5px;">
+                  <div style="width: ${updateEnt.attributes.update_percentage || 0}%; background: #4da3ff; height: 100%; transition: width 0.5s;"></div>
+               </div>
+               <div style="text-align: center; font-size: 0.7em; margin-top: 5px; color: #4da3ff;">
+                  Updating: ${updateEnt.attributes.update_percentage}%
+               </div>
+            ` : ''}
           </div>
           
           <div id="charge-settings-panel" class="sub-panel" style="display: ${this._activePanel === 'charge-settings-panel' ? 'block' : 'none'};">
