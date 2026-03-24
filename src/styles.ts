@@ -69,61 +69,43 @@ export const cardStyles = css`
   .active-icon { color: #03a9f4 !important; }
   .phase-line { font-size: 11px; margin-bottom: 4px; font-family: monospace; white-space: nowrap; color: #888;}
 
-  /* Nowy pasek SoC z gradientem i animacją przepływu */
+  /* Styl dla kontenera - musi być 'relative' i mieć 'overflow: hidden' */
   .progress-container {
-    height: 14px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 7px;
-    position: relative;
-    overflow: hidden; /* To jest kluczowe dla clip-path i animacji */
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    margin: 10px 15px;
+      position: relative;
+      height: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      overflow: hidden; /* To jest krytyczne! */
   }
   
-  /* Warstwa gradientu rozciągnięta na całą szerokość karty */
-  .progress-bar-gradient {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%; /* Zawsze 100% szerokości kontenera */
-    height: 100%;
-    background: linear-gradient(to right, 
-      #ef4444 0%,    /* Czerwony (0%) */
-      #eab308 50%,   /* Żółty (50%) */
-      #22c55e 100%   /* Zielony (100%) */
-    );
-    transition: clip-path 0.8s ease-in-out;
-  }
-  
-  /* Warstwa animacji ładowania (Shimmer) */
+  /* Warstwa animowana */
   .shimmer-layer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.4) 50%,
-      transparent 100%
-    );
-    background-size: 50% 100%;
-    background-repeat: no-repeat;
-    display: none; /* Domyślnie ukryte */
+      display: none; /* Domyślnie ukryta */
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.4),
+          transparent
+      );
   }
   
-  /* Aktywacja animacji gdy ładuje */
+  /* Aktywacja animacji gdy jest klasa .charging */
   .charging .shimmer-layer {
-    display: block;
-    animation: shimmer-move 1.5s infinite linear;
+      display: block;
+      animation: shimmer 1.5s infinite;
   }
   
-  @keyframes shimmer-move {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(200%); }
+  /* Definicja ruchu */
+  @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
   }
-  
+    
   /* Style ikon bocznych */
   .data-row ha-icon {
     transition: color 0.3s ease;
