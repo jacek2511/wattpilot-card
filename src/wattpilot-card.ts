@@ -231,7 +231,8 @@ export class WattpilotCard extends LitElement {
     const phases = this._getState('entity_phase') || 'Auto';
     const timeLeft = this._getState('entity_time_left');
     const wifiState = this._getState('entity_wifi_state') || '--';
-    const wifiSSID = this._getState('entity_wifi_ssid') || '--';
+    const wifiSignal = this._getState('entity_wifi_signal') || '--';
+    const wifiConn= this._getState('entity_wifi_conn') || '--';
     const totalCharged = this._getState('entity_total_charged') || '0';
     const powerEnt = this._getEntity('entity_power');
     const attr = powerEnt?.attributes || {};
