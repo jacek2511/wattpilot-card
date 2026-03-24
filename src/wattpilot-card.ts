@@ -225,6 +225,9 @@ export class WattpilotCard extends LitElement {
     const attr = powerEnt?.attributes || {};
     const internalError = this._getState('entity_internal_error');
     const updateEnt = this._getState('entity_firmware_update');
+    const isUpdateAvailable = updateEnt 
+      ? updateEnt.attributes.installed_version !== updateEnt.attributes.latest_version
+      : false;
     const hasError = internalError !== 'None' && internalError !== '--' && internalError !== 'unknown';
     
     return html`
