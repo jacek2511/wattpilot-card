@@ -27,6 +27,11 @@ export const cardStyles = css`
   .start { background: #4caf50; color: black; }
   .stop { background: #f44336; color: white; height: 44px; }
 
+  .mode-btn.active.standard { border-color: #ff9800 !important; background: rgba(255, 152, 0, 0.1) !important; color: #ff9800 !important; }
+  .mode-btn.active.standard ha-icon { color: #ff9800 !important; }
+  .mode-btn.active.eco { border-color: #4caf50 !important; background: rgba(76, 175, 80, 0.1) !important; color: #4caf50 !important; }
+  .mode-btn.active.eco ha-icon { color: #4caf50 !important; }  
+
   /* ŚRODEK */
   .visual-center { display: flex; justify-content: space-between; align-items: center; height: 110px; margin-top: 18px; }
   .device-img { width: 71px; z-index: 2; position: relative; }
@@ -41,7 +46,7 @@ export const cardStyles = css`
   
   .soc-range-row { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-top: 2px; margin-bottom: 4px; }
   .stat-item { display: flex; align-items: center; gap: 4px; }
-  .stat-item ha-icon { --mdc-icon-size: 14px; }
+  .stat-item ha-icon { --mdc-icon-size: 14px; transition: color 0.3s ease; }
  
   .time-left-text { text-align: center; font-size: 11px; color: #03a9f4; margin-top: 4px; font-weight: 500; }
 
@@ -68,104 +73,24 @@ export const cardStyles = css`
   .active-icon { color: #03a9f4 !important; }
   .phase-line { font-size: 11px; margin-bottom: 4px; font-family: monospace; white-space: nowrap; color: #888;}
   
-  .charging-progress-area {
-    position: relative; /* Ważne dla pozycjonowania czasu */
-    margin: 15px 0;
-    padding-bottom: 5px; /* Rezerwujemy stałe miejsce na czas */
-  }
-  
-  .progress-container {
-    height: 12px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    overflow: hidden;
-    position: relative;
-  }
-
-  .progress-bar-gradient {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%; /* Rozciąga się na cały kontener, a clip-path go docina */
-    height: 100%;
-    background: linear-gradient(90deg, #ff4d4d 0%, #fbff00 50%, #4caf50 100%);
-    transition: clip-path 0.8s cubic-bezier(0.22, 1, 0.36, 1); /* Płynne przesuwanie paska */
-    z-index: 1;
-  }
-  
-  /* Nowa klasa dla napisu czasu, która nie przesuwa layoutu */
-  .time-left-display {
-    position: absolute;
-    width: 100%;
-    text-align: center;
-    font-size: 0.75em;
-    color: var(--secondary-text-color);
-    bottom: -14px; /* Wyrzuca napis pod pasek, ale wewnątrz marginesu area */
-    left: 0;
-  }
-  
+  .charging-progress-area { position: relative; margin: 15px 0; padding-bottom: 5px; }
+  .time-left-display { position: absolute; width: 100%; text-align: center; font-size: 0.75em; color: var(--secondary-text-color); bottom: -14px; left: 0; }  
+  .progress-container { height: 12px; background: rgba(255, 255, 255, 0.1); border-radius: 6px; overflow: hidden; position: relative; }
+  .progress-bar-gradient { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, #ff4d4d 0%, #fbff00 50%, #4caf50 100%); transition: clip-path 0.8s cubic-bezier(0.22, 1, 0.36, 1); z-index: 1; } 
   .power-row-inline { display: flex; flex-direction: row; justify-content: flex-start; align-items: baseline; gap: 10px; margin-top: 12px; padding-left: 2px; }
   .main-power { font-size: 28px; font-weight: bold; line-height: 1; color: #ffffff; }
   .sub-power { font-size: 14px; white-space: nowrap; color: #888888; }
 
-  /* Kontener na kroczące strzałki */
-  .marching-arrows {
-    display: none; /* Domyślnie ukryte */
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    opacity: 0.6;
-    z-index: 2;
-  }
-  
-  /* Tworzymy wzór strzałek za pomocą pseudo-elementu */
-  .marching-arrows::before {
-    content: "»  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »";
-    position: absolute;
-    width: 200%; /* Dwa razy szerszy, żeby animacja była płynna */
-    height: 100%;
-    display: flex;
-    align-items: center;
-    font-family: monospace;
-    font-size: 14px;
-    font-weight: bold;
-    color: white;
-    letter-spacing: 15px;
-    white-space: nowrap;
-  }
-  
-  /* Aktywacja animacji tylko podczas ładowania */
-  .charging .marching-arrows {
-    display: block;
-  }
-  
-  .charging .marching-arrows::before {
-    animation: march 4s linear infinite;
-  }
-  
-  /* Definicja ruchu strzałek */
-  @keyframes march {
-    0% { transform: translateX(-50%); }
-    100% { transform: translateX(0%); }
-  }
-  
-  /* Opcjonalnie: sprawmy, by pasek pulsował delikatnie wraz ze strzałkami */
-  .charging .progress-bar-gradient {
-    animation: pulse-border 2s ease-in-out infinite;
-  }
-  
-  @keyframes pulse-border {
-    0%, 100% { filter: brightness(1); }
-    50% { filter: brightness(1.3); }
-  }
+  .marching-arrows { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; opacity: 0.6; z-index: 2; }
+  .marching-arrows::before {  content: "»  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »  »"; position: absolute; width: 200%; height: 100%; display: flex; align-items: center; font-family: monospace; font-size: 14px; font-weight: bold; color: white; letter-spacing: 15px; white-space: nowrap; }
+  .charging .marching-arrows { display: block; }
+  .charging .marching-arrows::before { animation: march 4s linear infinite; }
+  @keyframes march { 0% { transform: translateX(-50%); } 100% { transform: translateX(0%); } }
+  .charging .progress-bar-gradient { animation: pulse-border 2s ease-in-out infinite; }
+  @keyframes pulse-border { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.3); } }
 
   /* Style ikon bocznych */
-  .data-row ha-icon {
-    transition: color 0.3s ease;
-  } 
+  .data-row ha-icon { transition: color 0.3s ease; } 
   
   .led-wrapper { position: relative; width: 100px; height: 100px; display: flex; justify-content: center; align-items: center; }
   .led.default-on { opacity: 1; }
