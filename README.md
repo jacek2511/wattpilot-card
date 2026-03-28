@@ -31,7 +31,7 @@ This card is a frontend representation and **requires** the following integratio
 1.  Ensure [HACS](https://hacs.xyz/) is installed.
 2.  Go to **HACS** > **Frontend**.
 3.  Click the **three dots** in the top right corner and select **Custom repositories**.
-4.  Add URL: `https://github.com/jacek2511/ha_wattpilot-card`
+4.  Add URL: `https://github.com/jacek2511/wattpilot-card`
 5.  Select **Lovelace** as the category and click **Add**.
 6.  Find **Wattpilot Card** in the list and click **Download**.
 
