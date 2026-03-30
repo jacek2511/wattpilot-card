@@ -15,7 +15,8 @@ export const cardStyles = css`
   .actions-grid { display: flex; flex-direction: column; gap: 4px; width: 80px; }
 
   /* --- BAZA PRZYCISKU --- */
-  .mode-btn { background: #262626; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; cursor: pointer; height: 44px; border: 1px solid transparent; transition: background 0.2s, border-color 0.2s; }  .mode-btn.active { border-color: #03a9f4; background: rgba(3,169,244,0.1); border-width: 1px; border-style: solid; }
+  .mode-btn { background: #262626; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; cursor: pointer; height: 44px; border: 1px solid transparent; transition: background 0.2s, border-color 0.2s; }  
+  .mode-btn.active { border-color: #03a9f4; background: rgba(3,169,244,0.1); border-width: 1px; border-style: solid; }
   .mode-btn ha-icon { --mdc-icon-size: 20px; }
   .mode-btn span { font-size: 10px; }
 
@@ -67,15 +68,26 @@ export const cardStyles = css`
   .chip { background: #333; padding: 5px 12px; border-radius: 16px; font-size: 12px; cursor: pointer; transition: background 0.2s; }
   .chip.active { background: #03a9f4; font-weight: bold; color: white;}
   
-  .slider-row {  margin-bottom: 8px; display: flex; align-items: center; gap: 8px; width: 100%; }
-  .slider-label { font-size: 14px; color: #ccc; min-width: 90px; }
+  /* --- UJEDNOLICENIE SUWAKÓW --- */
+  .slider-row { margin-bottom: 8px; display: flex; align-items: center; gap: 12px; width: 100%; }
+  .control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: #ccc; gap: 12px; }
+  
+  /* Wspólne etykiety o stałej szerokości (gwarancja równego startu suwaków) */
+  .slider-label, .control-label { font-size: 13px; color: #ccc; flex: 0 0 120px; white-space: nowrap; }
+  
+  /* Kontener na suwak i wartość dla podpaneli */
+  .right-controls { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: flex-end; }
+  
   select, input { max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; }
-  input[type=range] { flex: 1; min-width: 0; }
-  .amp-box { font-weight: bold; font-size: 14px; min-width: 35px; text-align: right; }
+  
+  /* Suwaki rozciągają się na pozostałą przestrzeń */
+  input[type=range] { flex: 1; min-width: 0; cursor: pointer; accent-color: #03a9f4; }
+  
+  /* Wspólne wartości liczbowe o stałej szerokości (gwarancja równego końca suwaków) */
+  .amp-box, .val-txt { font-weight: bold; font-size: 13px; flex: 0 0 45px; text-align: right; color: #fff; }
 
   .sub-panel { background: #262626; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; }
   .section-title { color: #03a9f4; font-weight: bold; margin-bottom: 8px; font-size: 11px; letter-spacing: 1px; }
-  .control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: #ccc; }
   .divider { height: 1px; background: #333; margin: 12px 0; }
   .active-icon { color: #03a9f4 !important; }
   .phase-line { font-size: 11px; margin-bottom: 4px; font-family: monospace; white-space: nowrap; color: #888;}
