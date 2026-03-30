@@ -139,18 +139,31 @@ export class WattpilotCard extends LitElement {
       ...extraData
     });
   }
-  
-  private _handleSliderInput(e: Event) {
+
+  // Funkcja wywoływana przy KAŻDYM ruchu suwaka (@input)
+  private _handleGenericInput(e: Event, configKey: string, isMs: boolean = false) {
     this._isInteracting = true;
-    this._currentAmps = parseInt((e.target as HTMLInputElement).value, 10);
+    const val = parseInt((e.target as HTMLInputElement).value, 10);
+    this._localValues[configKey] = val;
+    if (configKey === 'entity_current') {
+      this._currentAmps = val;
+    }
+    this.requestUpdate();
   }
-
-  private _handleSliderChange(e: Event) {
-    const val = (e.target as HTMLInputElement).value;
-    this._callService('number', 'set_value', 'entity_current', { value: val });
-    setTimeout(() => { this._isInteracting = false; }, 2000);
+  
+  // Funkcja wywoływana po PUSZCZENIU suwaka (@change)
+  private _handleGenericChange(e: Event, configKey: string, isMs: boolean = false) {
+    let val = parseFloat((e.target as HTMLInputElement).value);
+    const finalValue = isMs ? val * 60000 : val;
+    const domain = configKey.includes('soc') ? 'input_number' : 'number';
+    this._callService(domain, 'set_value', configKey, { value: finalValue });
+    setTimeout(() => { 
+      delete this._localValues[configKey];
+      this._isInteracting = false; 
+      this.requestUpdate();
+    }, 2000);
   }
-
+ 
   private _togglePanel(panelId: string) {
     this._activePanel = this._activePanel === panelId ? '' : panelId;
   }
@@ -479,10 +492,12 @@ export class WattpilotCard extends LitElement {
           <div class="slider-row">
             <span class="slider-label">Max Current</span>
             <input type="range" min="6" max="32" step="1" 
-                   .value=${this._currentAmps.toString()}
-                   @input=${this._handleSliderInput}
-                   @change=${this._handleSliderChange}>
-            <div class="amp-box">${this._currentAmps}A</div>
+              .value=${this._localValues['entity_current'] ?? this._getState('entity_current') ?? 32}
+              @input=${(e: Event) => this._handleGenericInput(e, 'entity_current')}
+              @change=${(e: Event) => this._handleGenericChange(e, 'entity_current')}>
+            <div class="amp-box">
+              ${this._localValues['entity_current'] ?? Math.round(parseFloat(this._getState('entity_current') || '32'))}A
+            </div>
           </div>
 
           <div id="settings-panel" class="sub-panel" style="display: ${this._activePanel === 'settings-panel' ? 'block' : 'none'};">
@@ -498,80 +513,112 @@ export class WattpilotCard extends LitElement {
                 </select>
              </div>
 
-             <div class="control-row">
-                <span class="control-label">Cable Unlock</span>
-                <select class="custom-select" 
-                  .value=${this._getState('entity_cable_unlock') || ''}
-                  @change=${(e: any) => this._callService('select', 'select_option', 'entity_cable_unlock', { option: e.target.value })}>
-                  ${this._getEntity('entity_cable_unlock')?.attributes?.options?.map((opt: string) => html`<option value="${opt}">${opt}</option>`) || html`<option value="">--</option>`}
-                </select>
-             </div>
+           <div class="control-row">
+              <span class="control-label">Cable Unlock</span>
+              <select class="custom-select" 
+                .value=${this._getState('entity_cable_unlock') || ''}
+                @change=${(e: any) => this._callService('select', 'select_option', 'entity_cable_unlock', { option: e.target.value })}>
+                ${this._getEntity('entity_cable_unlock')?.attributes?.options?.map((opt: string) => html`<option value="${opt}">${opt}</option>`) || html`<option value="">--</option>`}
+              </select>
+           </div>
 
-             <div class="divider"></div>
+           <div class="divider"></div>
 
-             <div class="control-row">
-                <span class="control-label">Min Charge Time</span>
-                <div class="right-controls">
-                   <input type="range" min="0" max="60" 
-                     .value=${msToMin(this._getState('entity_min_time') || 0)}
-                     @change=${(e: any) => this._callService('number', 'set_value', 'entity_min_time', { value: minToMs(parseFloat(e.target.value)) })}>
-                   <span class="val-txt">${msToMin(this._getState('entity_min_time') || 0)}m</span>
-                </div>
-             </div>
+            <div class="control-row">
+              <span class="control-label">Min Charge Time</span>
+              <div class="right-controls">
+                 <input type="range" min="0" max="60" 
+                   .value=${this._localValues['entity_min_time'] ?? msToMin(this._getState('entity_min_time') || 0)}
+                   @input=${(e: Event) => this._handleGenericInput(e, 'entity_min_time')}
+                   @change=${(e: Event) => this._handleGenericChange(e, 'entity_min_time', true)}>
+                 
+                 <span class="val-txt">
+                   ${this._localValues['entity_min_time'] ?? msToMin(this._getState('entity_min_time') || 0)}m
+                 </span>
+              </div>
+            </div>
+            
+            <div class="control-row">
+              <span class="control-label">Phase Switch Delay</span>
+              <div class="right-controls">
+                 <input type="range" min="0" max="60" 
+                   .value=${this._localValues['entity_phase_delay'] ?? msToMin(this._getState('entity_phase_delay') || 0)}
+                   @input=${(e: Event) => this._handleGenericInput(e, 'entity_phase_delay')}
+                   @change=${(e: Event) => this._handleGenericChange(e, 'entity_phase_delay', true)}>
+                 
+                 <span class="val-txt">
+                   ${this._localValues['entity_phase_delay'] ?? msToMin(this._getState('entity_phase_delay') || 0)}m
+                 </span>
+              </div>
+            </div>
+            
+            <div class="control-row">
+              <span class="control-label">Phase Switch Interval</span>
+              <div class="right-controls">
+                 <input type="range" min="0" max="60" 
+                   .value=${this._localValues['entity_phase_interval'] ?? msToMin(this._getState('entity_phase_interval') || 0)}
+                   @input=${(e: Event) => this._handleGenericInput(e, 'entity_phase_interval')}
+                   @change=${(e: Event) => this._handleGenericChange(e, 'entity_phase_interval', true)}>
+                 
+                 <span class="val-txt">
+                   ${this._localValues['entity_phase_interval'] ?? msToMin(this._getState('entity_phase_interval') || 0)}m
+                 </span>
+              </div>
+            </div>
 
-             <div class="control-row">
-                <span class="control-label">Phase Switch Delay</span>
-                <div class="right-controls">
-                   <input type="range" min="0" max="60" 
-                     .value=${msToMin(this._getState('entity_phase_delay') || 0)}
-                     @change=${(e: any) => this._callService('number', 'set_value', 'entity_phase_delay', { value: minToMs(parseFloat(e.target.value)) })}>
-                   <span class="val-txt">${msToMin(this._getState('entity_phase_delay') || 0)}m</span>
-                </div>
-             </div>
+            <div class="divider"></div>
 
-             <div class="control-row">
-                <span class="control-label">Phase Switch Interval</span>
-                <div class="right-controls">
-                   <input type="range" min="0" max="60" 
-                     .value=${msToMin(this._getState('entity_phase_interval') || 0)}
-                     @change=${(e: any) => this._callService('number', 'set_value', 'entity_phase_interval', { value: minToMs(parseFloat(e.target.value)) })}>
-                   <span class="val-txt">${msToMin(this._getState('entity_phase_interval') || 0)}m</span>
-                </div>
-             </div>
-
-             <div class="divider"></div>
-
-             <div class="control-row">
-                <span class="control-label">PV Battery Threshold</span>
-                <div class="right-controls">
-                   <input type="range" min="0" max="100" 
-                     .value=${this._getState('entity_pv_threshold') || 0}
-                     @change=${(e: any) => this._callService('number', 'set_value', 'entity_pv_threshold', { value: parseFloat(e.target.value) })}>
-                   <span class="val-txt">${this._getState('entity_pv_threshold') || 0}%</span>
-                </div>
-             </div>
-
-             <div class="control-row">
-                <span class="control-label">Boost Discharge Until</span>
-                <div class="right-controls">
-                   <input type="range" min="0" max="100" 
-                     .value=${this._getState('entity_boost_limit') || 0}
-                     @change=${(e: any) => this._callService('number', 'set_value', 'entity_boost_limit', { value: parseFloat(e.target.value) })}>
-                   <span class="val-txt">${this._getState('entity_boost_limit') || 0}%</span>
-                </div>
-             </div>
-
-             <div class="divider"></div>
-
-             <div class="control-row">
-                <span class="control-label">3-Phase Power Level</span>
-                <div class="right-controls">
-                   <input type="range" min="1.0" max="11.0" step="0.1"
-                     .value=${wToKw(this._getState('entity_phase_power') || 0)}
-                     @change=${(e: any) => this._callService('number', 'set_value', 'entity_phase_power', { value: kwToW(parseFloat(e.target.value)) })}>
-                   <span class="val-txt">${wToKw(this._getState('entity_phase_power') || 0)}kW</span>
-                </div>
-             </div>
+            <div class="control-row">
+              <span class="control-label">PV Battery Threshold</span>
+              <div class="right-controls">
+                 <input type="range" min="0" max="100" 
+                   .value=${this._localValues['entity_pv_threshold'] ?? this._getState('entity_pv_threshold') ?? 0}
+                   @input=${(e: Event) => this._handleGenericInput(e, 'entity_pv_threshold')}
+                   @change=${(e: Event) => this._handleGenericChange(e, 'entity_pv_threshold')}>
+                 
+                 <span class="val-txt">
+                   ${this._localValues['entity_pv_threshold'] ?? this._getState('entity_pv_threshold') ?? 0}%
+                 </span>
+              </div>
+            </div>
+            
+            <div class="control-row">
+              <span class="control-label">Boost Discharge Until</span>
+              <div class="right-controls">
+                 <input type="range" min="0" max="100" 
+                   .value=${this._localValues['entity_boost_limit'] ?? this._getState('entity_boost_limit') ?? 0}
+                   @input=${(e: Event) => this._handleGenericInput(e, 'entity_boost_limit')}
+                   @change=${(e: Event) => this._handleGenericChange(e, 'entity_boost_limit')}>
+                 
+                 <span class="val-txt">
+                   ${this._localValues['entity_boost_limit'] ?? this._getState('entity_boost_limit') ?? 0}%
+                 </span>
+              </div>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="control-row">
+              <span class="control-label">3-Phase Power Level</span>
+              <div class="right-controls">
+                 <input type="range" min="1.0" max="11.0" step="0.1"
+                   .value=${this._localValues['entity_phase_power_local'] ?? wToKw(this._getState('entity_phase_power') || 0)}
+                   /* Tutaj używamy osobnego klucza _local, aby uniknąć problemów z konwersją W/kW w locie */
+                   @input=${(e: any) => { 
+                     this._localValues['entity_phase_power_local'] = e.target.value; 
+                     this.requestUpdate(); 
+                   }}
+                   @change=${(e: any) => {
+                     const val = parseFloat(e.target.value);
+                     this._callService('number', 'set_value', 'entity_phase_power', { value: kwToW(val) });
+                     setTimeout(() => { delete this._localValues['entity_phase_power_local']; this.requestUpdate(); }, 2000);
+                   }}>
+                 
+                 <span class="val-txt">
+                   ${this._localValues['entity_phase_power_local'] ?? wToKw(this._getState('entity_phase_power') || 0)}kW
+                 </span>
+              </div>
+            </div>
 
              <div class="divider"></div>
 
@@ -715,29 +762,37 @@ export class WattpilotCard extends LitElement {
           </div>
           
           <div id="charge-settings-panel" class="sub-panel" style="display: ${this._activePanel === 'charge-settings-panel' ? 'block' : 'none'};">
-             <div class="divider"></div>
-             <div class="section-title">BATTERY & LIMITS</div>
+            <div class="divider"></div>
+            <div class="section-title">BATTERY & LIMITS</div>
              
-              <div class="control-row">
-                <span class="control-label">Target SoC</span>
-                <div class="right-controls">
-                   <input type="range" min="0" max="100"
-                     .value=${this._getState('entity_target_soc') || 0}
-                     @change=${(e: any) => this._callService('input_number', 'set_value', 'entity_target_soc', { value: parseFloat(e.target.value) })}>
-                   <span class="val-txt">${this._getState('entity_target_soc') ? Math.round(parseFloat(this._getState('entity_target_soc'))) : '--'}%</span>
-                </div>
-             </div>
-             
-             <div class="control-row">
-                <span class="control-label">Min SoC</span>
-                <div class="right-controls">
-                   <input type="range" min="0" max="100"
-                     .value=${this._getState('entity_min_soc') || 0}
-                     @change=${(e: any) => this._callService('input_number', 'set_value', 'entity_min_soc', { value: parseFloat(e.target.value) })}>
-                   <span class="val-txt">${this._getState('entity_min_soc') ? Math.round(parseFloat(this._getState('entity_min_soc'))) : '--'}%</span>
-                </div>
-             </div>
-             
+            <div class="control-row">
+              <span class="control-label">Target SoC</span>
+              <div class="right-controls">
+                 <input type="range" min="0" max="100" 
+                   .value=${this._localValues['entity_target_soc'] ?? this._getState('entity_target_soc') ?? 0}
+                   @input=${(e: Event) => this._handleGenericInput(e, 'entity_target_soc')}
+                   @change=${(e: Event) => this._handleGenericChange(e, 'entity_target_soc')}>
+                 
+                 <span class="val-txt">
+                   ${this._localValues['entity_target_soc'] ?? (this._getState('entity_target_soc') ? Math.round(parseFloat(this._getState('entity_target_soc'))) : '--')}%
+                 </span>
+              </div>
+            </div>
+            
+            <div class="control-row">
+              <span class="control-label">Min SoC</span>
+              <div class="right-controls">
+                 <input type="range" min="0" max="100" 
+                   .value=${this._localValues['entity_min_soc'] ?? this._getState('entity_min_soc') ?? 0}
+                   @input=${(e: Event) => this._handleGenericInput(e, 'entity_min_soc')}
+                   @change=${(e: Event) => this._handleGenericChange(e, 'entity_min_soc')}>
+                 
+                 <span class="val-txt">
+                   ${this._localValues['entity_min_soc'] ?? (this._getState('entity_min_soc') ? Math.round(parseFloat(this._getState('entity_min_soc'))) : '--')}%
+                 </span>
+              </div>
+            </div>
+
              <div class="divider"></div>
 
              <div class="control-row">
