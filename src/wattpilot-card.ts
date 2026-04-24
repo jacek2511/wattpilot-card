@@ -201,7 +201,9 @@ export class WattpilotCard extends LitElement {
       const val = this._formatValue(rawValue, unit);
 
       rows.push(html`
-        <div class="data-row ${side}">
+        <div class="data-row ${side}" 
+             @click=${() => this._handleMoreInfo(key)} 
+             style="cursor: pointer;">
           ${side === 'left' 
             ? html`<ha-icon .icon=${icon} style="color: ${iconColor}"></ha-icon><span>${val}${unit}</span>` 
             : html`<span>${val}${unit}</span><ha-icon .icon=${icon} style="color: ${iconColor}"></ha-icon>`}
@@ -300,6 +302,18 @@ export class WattpilotCard extends LitElement {
         <div class="${ledClass}" style="transform: rotate(${angle}deg) translate(24px); opacity: ${opacity};"></div>
       `;
     });
+  }
+
+  private _handleMoreInfo(configKey: string) {
+    const stateObj = this._getEntity(configKey);
+    if (!stateObj) return;
+
+    const event = new CustomEvent('hass-more-info', {
+      detail: { entityId: stateObj.entity_id },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(event);
   }
   
   protected render(): TemplateResult {
@@ -436,8 +450,16 @@ export class WattpilotCard extends LitElement {
         </div>
           
         <div class="soc-range-row">
-            <div class="stat-item" style="color: ${batteryColor}"><ha-icon .icon="${batteryIcon}"></ha-icon> ${soc}/${socTarget} %</div>
-            <div class="stat-item"><ha-icon icon="mdi:road-variant"></ha-icon> ${range}/${rangeTarget} km</div>
+            <div class="stat-item" 
+                 style="color: ${batteryColor}; cursor: pointer;" 
+                 @click=${() => this._handleMoreInfo('entity_soc')}>
+                 <ha-icon .icon="${batteryIcon}"></ha-icon> ${soc}/${socTarget} %
+            </div>
+            <div class="stat-item" 
+                 style="cursor: pointer;" 
+                 @click=${() => this._handleMoreInfo('entity_range')}>
+                 <ha-icon icon="mdi:road-variant"></ha-icon> ${range}/${rangeTarget} km
+            </div>
         </div>
 
         <div class="charging-progress-area ${this._isCharging ? 'charging' : ''}">
@@ -450,8 +472,18 @@ export class WattpilotCard extends LitElement {
         </div>
   
         <div class="power-row-inline">
-          <span class="main-power">${power} kW</span>
-          <span class="sub-power">${totalAmps} A &nbsp;|&nbsp; ${sessionEnergy} kWh &nbsp;|&nbsp; ${phaseStatus}</span>
+          <span class="main-power" 
+                style="cursor: pointer;" 
+                @click=${() => this._handleMoreInfo('entity_power')}>
+                ${power} kW
+          </span>
+          <span class="sub-power">
+            <span @click=${() => this._handleMoreInfo('entity_power')} style="cursor: pointer;">${totalAmps} A</span>
+            &nbsp;|&nbsp; 
+            <span @click=${() => this._handleMoreInfo('entity_session_energy')} style="cursor: pointer;">${sessionEnergy} kWh</span>
+            &nbsp;|&nbsp; 
+            <span>${phaseStatus}</span>
+          </span>
         </div>
 
         <div class="settings-area">
