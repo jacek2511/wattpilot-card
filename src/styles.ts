@@ -1,6 +1,8 @@
 import { css } from 'lit';
 
 export const cardStyles = css`
+  .data-row, .stat-item, .main-power, .sub-power span { cursor: pointer; }
+  @media (hover: hover) { .data-row:hover, .stat-item:hover, .main-power:hover { filter: brightness(1.4); }}
   :host { display: block; }
   ha-card { padding: 4px 12px 12px 12px; background: #1c1c1c; color: white; overflow: hidden; }
   .card-header { display: flex; justify-content: space-between; margin-top: -12px; margin-bottom: -2px; height: 32px; align-items: center;  }
